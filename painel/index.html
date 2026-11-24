@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#14532d" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <title>Painel – Missão Vargem Bonita</title>
+  </head>
+  <body class="painel">
+    <section id="tela-entrada" class="entrada" hidden>
+      <div class="cartao">
+        <h1>Painel da coordenação</h1>
+        <form id="form-entrada">
+          <label>Código da coordenação
+            <input id="inp-codigo" type="password" autocomplete="off" required />
+          </label>
+          <p id="erro-entrada" class="erro" hidden>Código incorreto.</p>
+          <button class="btn btn-primario btn-grande" type="submit">Entrar</button>
+        </form>
+        <p class="rodape"><a href="/">Voltar ao app das equipes</a></p>
+      </div>
+    </section>
+
+    <main id="tela-painel" hidden>
+      <header class="barra">
+        <div>
+          <strong>Missão Vargem Bonita · Painel</strong>
+          <div id="indicador-sync" class="sync"></div>
+        </div>
+        <div class="botoes-barra">
+          <button id="btn-sync" class="btn btn-leve">Atualizar</button>
+          <a class="btn btn-leve" href="/">App das equipes</a>
+        </div>
+      </header>
+
+      <div id="demo-box" class="demo-box" hidden>
+        <strong>Modo demonstração.</strong> Os dados ficam só neste navegador.
+        <button id="btn-exemplo" class="btn btn-leve">Preencher com visitas de exemplo</button>
+        <button id="btn-limpar" class="btn btn-leve">Apagar todos os dados</button>
+      </div>
+
+      <section class="contadores" id="contadores"></section>
+
+      <div class="grade">
+        <div class="bloco bloco-mapa"><div id="mapa"></div></div>
+        <div class="bloco">
+          <h2>Placar da gincana</h2>
+          <table class="tabela" id="placar"></table>
+        </div>
+      </div>
+
+      <div class="grade">
+        <div class="bloco">
+          <h2>Casas amarelas – rodada de retorno <span id="n-amarelas" class="selo"></span></h2>
+          <div id="amarelas" class="lista-amarelas"></div>
+        </div>
+        <div class="bloco">
+          <h2>Por localidade</h2>
+          <div class="rolagem"><table class="tabela" id="localidades"></table></div>
+        </div>
+      </div>
+
+      <div class="bloco exportar">
+        <h2>Exportar planilhas (CSV)</h2>
+        <button id="btn-csv-visitas" class="btn btn-primario">Todas as visitas</button>
+        <button id="btn-csv-casas" class="btn btn-primario">Situação de cada casa</button>
+      </div>
+    </main>
+
+    <script type="module" src="/src/painel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#14532d" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <title>Missão Vargem Bonita</title>
+  </head>
+  <body>
+    <section id="tela-entrada" class="entrada" hidden>
+      <div class="cartao">
+        <h1>Missão Vargem Bonita</h1>
+        <p class="sub">Escolha sua equipe e digite o código.</p>
+        <form id="form-entrada">
+          <label>Equipe
+            <select id="sel-equipe" required></select>
+          </label>
+          <label>Código da equipe
+            <input id="inp-codigo" type="password" autocomplete="off" autocapitalize="off" required />
+          </label>
+          <p id="erro-entrada" class="erro" hidden>Código incorreto.</p>
+          <button class="btn btn-primario btn-grande" type="submit">Entrar</button>
+        </form>
+        <p class="rodape"><a href="/painel/">Painel da coordenação</a></p>
+      </div>
+    </section>
+
+    <section id="tela-mapa" hidden>
+      <header class="barra">
+        <div>
+          <strong id="nome-equipe"></strong>
+          <div id="indicador-sync" class="sync"></div>
+        </div>
+        <button id="btn-sair" class="btn btn-leve">Sair</button>
+      </header>
+      <div id="mapa"></div>
+      <div class="legenda">
+        <span><i style="background:#9ca3af"></i>Não visitada</span>
+        <span><i style="background:#15803d"></i>Recebidos</span>
+        <span><i style="background:#eab308"></i>Voltar</span>
+        <span><i style="background:#dc2626"></i>Recusaram</span>
+      </div>
+      <div class="acoes-mapa">
+        <button id="btn-filtro" class="btn btn-leve">Mostrando: todos os pontos</button>
+        <button id="btn-local" class="btn btn-leve" title="Minha localização">📍 Onde estou</button>
+        <button id="btn-adicionar" class="btn btn-primario">＋ Adicionar casa aqui</button>
+      </div>
+    </section>
+
+    <div id="folha" class="folha" hidden>
+      <div class="folha-corpo" id="folha-corpo"></div>
+    </div>
+    <div id="aviso" class="aviso" hidden></div>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>
