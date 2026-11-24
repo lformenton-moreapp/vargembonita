@@ -1,0 +1,10 @@
+{
+  "coordenacao": "painel2026",
+  "equipes": [
+    { "nome": "Equipe Azul", "codigo": "azul123" },
+    { "nome": "Equipe Verde", "codigo": "verde123" },
+    { "nome": "Equipe Laranja", "codigo": "laranja123" },
+    { "nome": "Equipe Roxa", "codigo": "roxa123" },
+    { "nome": "Equipe Rural 1", "codigo": "rural123" }
+  ]
+}

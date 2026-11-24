@@ -1,0 +1,110 @@
+# Missão Vargem Bonita – App de Mapeamento
+
+Web app (PWA, para celular) que mapeia a entrega de bíblias casa a casa em Vargem Bonita (MG), como uma gincana entre equipes.
+
+- **App das equipes** (`/`): mapa com todas as casas do município, registro da visita em poucos toques, "Ir até aqui" pelo Google Maps, "Adicionar casa aqui" pelo GPS e funcionamento sem sinal.
+- **Painel da coordenação** (`/painel/`): contadores, mapa geral, placar por equipe, lista de casas amarelas para a rodada de retorno, resumo por localidade e exportação em CSV.
+
+Cores: cinza = não visitada · verde = recebidos, bíblia entregue · amarelo = ninguém em casa / voltar depois · vermelho = não quiseram receber.
+No mapa, a borda branca marca um domicílio, a preta outros pontos (comércio, fazenda, igreja, escola…) e a azul uma casa adicionada pelo GPS.
+
+## Dados das casas
+
+Os pontos vêm do **CNEFE 2022 do IBGE** (`3170602_VARGEM_BONITA.csv`, na raiz). O script `scripts/gerar-casas.mjs` converte o CSV em `public/data/casas.json` e mostra quantos pontos há por espécie e por localidade:
+
+```bash
+npm run dados
+```
+
+Resultado atual: **1.882 pontos**, sendo 1.390 domicílios particulares, 266 estabelecimentos agropecuários, 161 de outras finalidades, 31 edificações em construção, 13 domicílios coletivos, 10 religiosos, 6 de ensino e 5 de saúde. Os 1.390 domicílios incluem casas vagas e de uso ocasional; o Censo contou 876 ocupadas. A sede (Centro) concentra 849 pontos.
+
+## Como rodar
+
+Requer Node 20 ou mais novo.
+
+```bash
+npm install
+```
+
+```bash
+npm run dev
+```
+
+Abra o endereço mostrado (ex.: `http://localhost:5173`). Com `--host`, o app também abre pelo IP do computador em celulares na mesma rede Wi-Fi.
+
+Para testar a versão final (com modo offline):
+
+```bash
+npm run build && npm run preview
+```
+
+### Modo demonstração
+
+Sem as variáveis do Supabase, o app funciona em **modo demonstração**: tudo fica guardado no navegador do aparelho. No painel aparecem os botões "Preencher com visitas de exemplo" e "Apagar todos os dados", úteis para apresentar aos parceiros. O app e o painel precisam estar abertos no mesmo navegador para enxergar os mesmos dados.
+
+## Equipes e códigos
+
+Edite `public/equipes.json`:
+
+```json
+{
+  "coordenacao": "painel2026",
+  "equipes": [
+    { "nome": "Equipe Azul", "codigo": "azul123" }
+  ]
+}
+```
+
+- `coordenacao`: código de acesso ao painel.
+- `equipes`: nome e código de cada equipe (maiúsculas e minúsculas são indiferentes).
+
+Depois de editar, publique de novo. **Troque os códigos de exemplo antes da missão.** Os códigos servem para organizar as equipes, não como senha forte: quem abrir o arquivo `equipes.json` no navegador consegue lê-los. Não use o nome da equipe como chave depois de a missão começar, porque o placar agrupa as visitas pelo nome.
+
+## Configurar o Supabase (sincronizar entre celulares)
+
+1. Crie um projeto gratuito em [supabase.com](https://supabase.com).
+2. Em **SQL Editor**, cole e rode o conteúdo de `supabase/schema.sql`. Ele cria as tabelas `visitas` e `casas_novas` com permissão para ler e inserir, mas não para alterar ou apagar.
+3. Em **Project Settings › API**, copie a *Project URL* e a chave *anon public*.
+4. Crie `.env.local` a partir de `.env.example`:
+
+   ```
+   VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+   VITE_SUPABASE_ANON_KEY=sua-chave-anon-publica
+   ```
+
+5. Rode `npm run build` (ou `npm run dev`). O aviso "Modo demonstração" some e a barra passa a mostrar "✓ Tudo enviado" ou "⏳ N pendentes de envio".
+
+Cada visita é gravada primeiro no celular (IndexedDB) e enviada quando há internet. O app tenta enviar a cada 30 segundos, ao voltar o sinal e ao reabrir. Tocar no indicador força o envio. Para corrigir uma visita registrada errado, apague a linha em **Table Editor** no Supabase.
+
+## Publicar na Vercel
+
+1. Envie o repositório para o GitHub.
+2. Em [vercel.com](https://vercel.com) › **Add New › Project**, importe o repositório. A Vercel detecta o Vite sozinha (build `npm run build`, pasta `dist`).
+3. Em **Settings › Environment Variables**, cadastre `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` e faça um novo deploy.
+4. Compartilhe o link com as equipes. No Android (Chrome), use "Adicionar à tela inicial" ou "Instalar app". No iPhone (Safari), use Compartilhar › "Adicionar à Tela de Início".
+
+O Netlify também funciona com as mesmas configurações.
+
+## Uso sem sinal (importante para a zona rural)
+
+- **Abra o app pelo menos uma vez com internet** em cada celular antes de ir a campo. Assim o app e os dados das casas ficam guardados.
+- O mapa de fundo (OpenStreetMap) só fica disponível offline nas áreas que já foram vistas com internet. Antes de sair, passeie pelo mapa da região da equipe nos níveis de zoom que vai usar. Os pontos das casas aparecem mesmo sem o mapa de fundo.
+- "Ir até aqui" abre o Google Maps, que precisa de sinal ou de mapa baixado no próprio Google Maps ("Mapas off-line").
+
+## Dados pessoais (LGPD)
+
+O app registra o endereço e o resultado da visita, não as pessoas. O campo de observação avisa para não escrever nomes, telefones ou detalhes pessoais dos moradores. Oriente as equipes no treinamento.
+
+## Estrutura
+
+```
+3170602_VARGEM_BONITA.csv   CSV original do CNEFE 2022 (IBGE)
+scripts/gerar-casas.mjs     CSV → public/data/casas.json
+public/data/casas.json      pontos usados pelo app
+public/equipes.json         equipes e códigos
+index.html, src/app.js      app das equipes
+painel/index.html, src/painel.js   painel da coordenação
+src/store.js                IndexedDB + sincronização com Supabase
+src/dados.js, src/config.js funções e configurações compartilhadas
+supabase/schema.sql         tabelas do banco
+```
