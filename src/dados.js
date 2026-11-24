@@ -84,34 +84,44 @@ function resumoGrupo(g) {
   };
 }
 
-export function estiloGrupo(g, selecionado, zoom) {
-  const r = raioPorZoom(zoom) + (g.casas.length > 1 ? 1 : 0);
-  const s = resumoGrupo(g);
-  if (selecionado) {
-    return { radius: r + 5, color: '#111827', weight: 4, fillColor: s.principal ? STATUS[s.principal].cor : '#ffffff', fillOpacity: 1 };
-  }
-  // Endereço do IBGE ainda não visitado (só aparece no modo "todos os endereços"): anel vazio.
-  if (!s.principal) return { radius: r, color: '#334155', weight: Math.max(1.5, r / 3), fillColor: '#ffffff', fillOpacity: 0.7 };
-  // Parte das moradias do ponto visitada: anel na cor da visita.
-  if (s.parcial) return { radius: r + 1, color: STATUS[s.visitadoQualquer].cor, weight: Math.max(2.5, r / 2), fillColor: '#ffffff', fillOpacity: 0.9 };
-  return { radius: r + 2, color: '#ffffff', weight: 2, fillColor: STATUS[s.principal].cor, fillOpacity: 1 };
+// Pin (gota) em SVG. Tamanho conforme o zoom; a ponta fica exatamente no local.
+function alturaPin(zoom) {
+  if (zoom <= 14) return 20;
+  if (zoom === 15) return 24;
+  if (zoom === 16) return 28;
+  return 34;
 }
 
-// Desenha os grupos no mapa. Com zoom de perto, mostra quantas moradias há no ponto.
+function iconePin(g, selecionado, zoom) {
+  const s = resumoGrupo(g);
+  const h = alturaPin(zoom) + (selecionado ? 10 : 0);
+  const w = Math.round(h * 0.75);
+  let fundo, borda, miolo;
+  if (!s.principal) { fundo = '#ffffff'; borda = '#334155'; miolo = '#334155'; }          // não visitado
+  else if (s.parcial) { fundo = '#ffffff'; borda = STATUS[s.visitadoQualquer].cor; miolo = STATUS[s.visitadoQualquer].cor; }
+  else { fundo = STATUS[s.principal].cor; borda = '#ffffff'; miolo = '#ffffff'; }
+  if (selecionado) borda = '#111827';
+  const n = g.casas.length > 1 ? `<span class="pin-num">${g.casas.length}</span>` : '';
+  return L.divIcon({
+    className: 'pin',
+    iconSize: [w, h],
+    iconAnchor: [w / 2, h],
+    html: `<svg viewBox="0 0 24 32" width="${w}" height="${h}" aria-hidden="true">
+      <path d="M12 1C5.9 1 1 5.8 1 11.8c0 7.9 9.4 18 10.2 18.8a1.1 1.1 0 0 0 1.6 0C13.6 29.8 23 19.7 23 11.8 23 5.8 18.1 1 12 1z"
+        fill="${fundo}" stroke="${borda}" stroke-width="${selecionado ? 2.6 : 2}"/>
+      <circle cx="12" cy="11.8" r="4.2" fill="${miolo}"/>
+    </svg>${n}`,
+  });
+}
+
 export function desenharGrupos(camada, grupos, { zoom, selecionada = null, aoTocar, popup }) {
   camada.clearLayers();
-  for (const g of grupos) {
+  // De cima para baixo na tela, para os pins mais ao sul ficarem na frente.
+  for (const g of [...grupos].sort((a, b) => b.lat - a.lat)) {
     const sel = selecionada && g.casas.some((c) => c.id === selecionada);
-    const m = L.circleMarker([g.lat, g.lng], { ...estiloGrupo(g, sel, zoom), bubblingMouseEvents: false }).addTo(camada);
+    const m = L.marker([g.lat, g.lng], { icon: iconePin(g, sel, zoom), keyboard: false, zIndexOffset: sel ? 1000 : 0 }).addTo(camada);
     if (aoTocar) m.on('click', () => aoTocar(g));
-    if (popup) m.bindPopup(() => popup(g), { maxHeight: 300 });
-    if (g.casas.length > 1 && zoom >= 16) {
-      L.marker([g.lat, g.lng], {
-        interactive: false,
-        keyboard: false,
-        icon: L.divIcon({ className: 'contagem', html: String(g.casas.length), iconSize: [18, 18], iconAnchor: [-2, 20] }),
-      }).addTo(camada);
-    }
+    if (popup) m.bindPopup(() => popup(g), { maxHeight: 300, offset: [0, -alturaPin(zoom)] });
   }
 }
 
@@ -171,16 +181,6 @@ export function criarMapa(elemento) {
   });
   new Botao().addTo(mapa);
   return mapa;
-}
-
-// Tamanho do ponto conforme o zoom: pequeno de longe, maior de perto.
-export function raioPorZoom(zoom) {
-  if (zoom <= 13) return 3;
-  if (zoom === 14) return 4;
-  if (zoom === 15) return 5;
-  if (zoom === 16) return 6;
-  if (zoom === 17) return 7;
-  return 9;
 }
 
 // ---------- Áreas (trechos de rua / comunidades rurais) ----------

@@ -14,15 +14,10 @@ registerSW({ immediate: true });
 
 const $ = (s) => document.querySelector(s);
 const CHAVE_EQUIPE = 'mvb-equipe';
-const FILTROS = [
-  { nome: 'só visitadas', ok: (c) => !!c.ultima },
-  { nome: 'todos os endereços do IBGE', ok: () => true },
-];
 
 let base, estado, mapa, camada, camadaToque, camadaAreas, equipe, corEquipe, marcadorEu, areas, listaEquipes;
 let jaEnquadrou = false;
 let selecionada = null;
-let filtro = 0;
 
 async function iniciar() {
   const [equipes, casas, as] = await Promise.all([carregarEquipes(), carregarCasas(), carregarAreas()]);
@@ -82,11 +77,6 @@ $('#btn-sair').onclick = () => {
   location.reload();
 };
 
-$('#btn-filtro').onclick = () => {
-  filtro = (filtro + 1) % FILTROS.length;
-  $('#btn-filtro').textContent = `Mostrando: ${FILTROS[filtro].nome}`;
-  desenhar();
-};
 
 async function atualizar() {
   estado = await montarEstado(base);
@@ -102,7 +92,8 @@ async function atualizar() {
 }
 
 function desenhar() {
-  const visiveis = estado.grupos.filter((g) => g.casas.some((c) => FILTROS[filtro].ok(c) || c.id === selecionada));
+  // Só os pontos já visitados aparecem (e o que estiver aberto no momento).
+  const visiveis = estado.grupos.filter((g) => g.casas.some((c) => c.ultima || c.id === selecionada));
   desenharGrupos(camada, visiveis, {
     zoom: mapa.getZoom(),
     selecionada,
