@@ -58,6 +58,7 @@ async function abrirMapa() {
   if (!mapa) {
     mapa = criarMapa('mapa');
     camada = L.layerGroup().addTo(mapa);
+    mapa.on('zoomend', desenhar);
     window.addEventListener('dados-mudaram', atualizar);
     window.addEventListener('online', atualizarIndicador);
     window.addEventListener('offline', atualizarIndicador);
@@ -93,7 +94,7 @@ function desenhar() {
   camada.clearLayers();
   for (const c of estado.casas) {
     if (!FILTROS[filtro].ok(c) && c.id !== selecionada) continue;
-    L.circleMarker([c.lat, c.lng], estiloMarcador(c, c.id === selecionada))
+    L.circleMarker([c.lat, c.lng], estiloMarcador(c, c.id === selecionada, mapa.getZoom()))
       .on('click', () => abrirCasa(c.id))
       .addTo(camada);
   }

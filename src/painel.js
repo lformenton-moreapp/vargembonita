@@ -35,6 +35,7 @@ async function abrirPainel() {
   $('#demo-box').hidden = !MODO_DEMO;
   mapa = criarMapa('mapa');
   camada = L.layerGroup().addTo(mapa);
+  mapa.on('zoomend', desenharMapa);
   window.addEventListener('dados-mudaram', atualizar);
   iniciarSincronizacaoAutomatica(20000);
   await atualizar();
@@ -99,7 +100,7 @@ function contadores() {
 function desenharMapa() {
   camada.clearLayers();
   for (const c of estado.casas) {
-    L.circleMarker([c.lat, c.lng], estiloMarcador(c))
+    L.circleMarker([c.lat, c.lng], estiloMarcador(c, false, mapa.getZoom()))
       .bindPopup(() => popup(c))
       .addTo(camada);
   }

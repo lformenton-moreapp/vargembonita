@@ -59,16 +59,34 @@ export function criarMapa(elemento) {
   return mapa;
 }
 
-// Domicílios aparecem com borda branca; demais pontos (comércio, fazenda,
-// igreja...) com borda preta; casas novas com borda azul.
-export function estiloMarcador(c, selecionada = false) {
-  const borda = c.especie === ESPECIE_CASA_NOVA ? '#1d4ed8' : (c.especie === 1 || c.especie === 2) ? '#ffffff' : '#111827';
+// Tamanho do ponto conforme o zoom: pequeno de longe, maior de perto.
+export function raioPorZoom(zoom) {
+  if (zoom <= 13) return 3;
+  if (zoom === 14) return 4;
+  if (zoom === 15) return 5;
+  if (zoom === 16) return 6;
+  if (zoom === 17) return 7;
+  return 9;
+}
+
+// Casas: bolinha cheia com borda branca fina.
+// Outros pontos (comércio, fazenda, igreja...) ainda não visitados: anel vazio.
+// Casas adicionadas pelo GPS: borda azul.
+export function estiloMarcador(c, selecionada = false, zoom = 16) {
+  const r = raioPorZoom(zoom);
+  if (selecionada) {
+    return { radius: r + 5, color: '#111827', weight: 4, fillColor: corDe(c), fillOpacity: 1 };
+  }
+  const casa = c.especie === 1 || c.especie === 2 || c.especie === ESPECIE_CASA_NOVA;
+  if (!casa && !c.ultima) {
+    return { radius: r, color: '#64748b', weight: Math.max(1.5, r / 3), fillColor: '#ffffff', fillOpacity: 0.9 };
+  }
   return {
-    radius: selecionada ? 11 : 7,
-    color: selecionada ? '#111827' : borda,
-    weight: selecionada ? 4 : 2,
+    radius: c.ultima ? r + 1 : r,
+    color: c.especie === ESPECIE_CASA_NOVA ? '#2563eb' : '#ffffff',
+    weight: c.especie === ESPECIE_CASA_NOVA ? 2.5 : r >= 6 ? 1.5 : 1,
     fillColor: corDe(c),
-    fillOpacity: 0.95,
+    fillOpacity: c.ultima ? 1 : 0.85,
   };
 }
 

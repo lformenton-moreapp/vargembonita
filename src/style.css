@@ -62,7 +62,7 @@ textarea { resize: vertical; }
   background: rgba(255,255,255,.95); border-radius: 10px; padding: .35rem .6rem; font-size: .8rem; font-weight: 600;
   box-shadow: 0 1px 4px rgba(0,0,0,.2); pointer-events: none;
 }
-.legenda i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.legenda i { display: inline-block; box-sizing: border-box; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
 .acoes-mapa {
   position: absolute; right: 12px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 500;
   display: flex; flex-direction: column; align-items: flex-end; gap: .5rem;
