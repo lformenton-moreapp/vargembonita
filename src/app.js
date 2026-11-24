@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { registerSW } from 'virtual:pwa-register';
 import { carregarCasas, carregarEquipes, carregarAreas, MODO_DEMO, STATUS } from './config.js';
 import {
-  contarPendentes, iniciarSincronizacaoAutomatica, salvarCasaNova, salvarContato, salvarVisita, sincronizar, ultimoErro,
+  contarPendentes, iniciarSincronizacaoAutomatica, prepararModo, salvarCasaNova, salvarContato, salvarVisita, sincronizar, ultimoErro,
 } from './store.js';
 import {
   criarMapa, dataHora, desenharAreas, endereco, pontosArea, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie,
@@ -20,6 +20,7 @@ let jaEnquadrou = false;
 let selecionada = null;
 
 async function iniciar() {
+  await prepararModo();
   const [equipes, casas, as] = await Promise.all([carregarEquipes(), carregarCasas(), carregarAreas()]);
   base = casas;
   areas = as;

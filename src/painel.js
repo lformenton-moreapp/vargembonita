@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { registerSW } from 'virtual:pwa-register';
 import { carregarCasas, carregarEquipes, carregarAreas, META_BIBLIAS, MODO_DEMO, STATUS } from './config.js';
 import {
-  atribuirQuarteiroes, buscarContatosCoordenacao, gravarEmLote, iniciarSincronizacaoAutomatica, limparTudo, novoId, sincronizar, ultimaSync, ultimoErro,
+  atribuirQuarteiroes, buscarContatosCoordenacao, gravarEmLote, iniciarSincronizacaoAutomatica, prepararModo, limparTudo, novoId, sincronizar, ultimaSync, ultimoErro,
 } from './store.js';
 import { criarMapa, dataHora, desenharAreas, endereco, esc, nomeArea, pontosArea, desenharGrupos, linkRota, montarEstado, nomeEspecie } from './dados.js';
 
@@ -18,6 +18,7 @@ let ruaInteira = true;
 let equipeSel = null;
 
 async function iniciar() {
+  await prepararModo();
   [equipes, base, listaAreas] = await Promise.all([carregarEquipes(), carregarCasas(), carregarAreas()]);
   if (sessionStorage.getItem(CHAVE) === '1') return abrirPainel();
   $('#tela-entrada').hidden = false;

@@ -233,6 +233,19 @@ export function sincronizar(forcar = false) {
   return sincronizando;
 }
 
+// Quando o aparelho troca de modo (demonstração → banco de verdade, ou de
+// banco), apaga uma única vez o que ficou guardado do modo anterior, para
+// nenhum dado de teste ser enviado ao banco.
+export async function prepararModo() {
+  const modo = MODO_DEMO ? 'demo' : SUPABASE_URL;
+  let anterior = null;
+  try { anterior = localStorage.getItem('mvb-modo'); } catch { /* sem armazenamento */ }
+  if (anterior === modo) return;
+  const temAlgo = (await listarVisitas()).length || (await listarCasasNovas()).length || (await listarContatosLocais()).length;
+  if (anterior !== null || (!MODO_DEMO && temAlgo)) await limparTudo();
+  try { localStorage.setItem('mvb-modo', modo); } catch { /* ok */ }
+}
+
 export function iniciarSincronizacaoAutomatica(intervaloMs = 30000) {
   if (MODO_DEMO) return;
   window.addEventListener('online', () => sincronizar());
