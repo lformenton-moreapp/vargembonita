@@ -1,43 +1,93 @@
 -- Missão Vargem Bonita: tabelas para sincronizar as visitas entre celulares.
 -- Cole no Supabase: SQL Editor > New query > Run.
+-- ANTES DE RODAR: troque 'TROQUE-ESTE-CODIGO' (no fim do arquivo) pelo código
+-- da coordenação, o mesmo de public/equipes.json.
 
 create table if not exists public.visitas (
   id           uuid primary key,
-  casa_id      text not null,             -- COD_UNICO_ENDERECO do CNEFE ou id de casa_novas
+  casa_id      text not null,             -- id do ponto (casas_novas) ou COD_UNICO_ENDERECO do CNEFE
   equipe       text not null,
-  status       text not null check (status in ('verde', 'amarelo', 'vermelho')),
+  status       text not null check (status in ('verde', 'laranja', 'amarelo', 'azul', 'cinza', 'vermelho')),
   biblia       boolean not null default false,
   qtd_biblias  integer not null default 0 check (qtd_biblias between 0 and 20),
   observacao   text check (char_length(observacao) <= 200),
+  tem_contato  boolean not null default false,
   criado_em    timestamptz not null,      -- horário no celular (vale offline)
   recebido_em  timestamptz not null default now()
 );
 create index if not exists visitas_casa_idx on public.visitas (casa_id);
 
+-- Pontos marcados pelas equipes (toque no telhado ou GPS).
 create table if not exists public.casas_novas (
   id           uuid primary key,
   lat          double precision not null,
   lng          double precision not null,
   precisao_m   integer,
-  descricao    text check (char_length(descricao) <= 120),
+  descricao    text check (char_length(descricao) <= 160),
+  cnefe_id     text,                      -- endereço do IBGE mais próximo (aproximado)
   localidade   text,
   equipe       text not null,
   criado_em    timestamptz not null,
   recebido_em  timestamptz not null default now()
 );
 
--- Segurança: com a chave pública (anon) é possível LER e INSERIR,
--- mas não alterar nem apagar. Correções são feitas pela coordenação
--- direto no painel do Supabase (Table Editor).
+-- Nome e telefone de quem quer continuidade (pin laranja). Dado pessoal:
+-- as equipes só conseguem INSERIR; a leitura é só pela função abaixo,
+-- que exige o código da coordenação.
+create table if not exists public.contatos (
+  id             uuid primary key,
+  visita_id      uuid,
+  casa_id        text,
+  equipe         text not null,
+  nome           text check (char_length(nome) <= 80),
+  telefone       text check (char_length(telefone) <= 20),
+  consentimento  boolean not null check (consentimento),
+  criado_em      timestamptz not null,
+  recebido_em    timestamptz not null default now()
+);
+
+-- Configuração privada (ninguém lê pela chave pública).
+create table if not exists public.config (
+  chave  text primary key,
+  valor  text not null
+);
+
+-- Segurança: com a chave pública (anon) é possível LER e INSERIR visitas e
+-- pontos, e só INSERIR contatos. Ninguém altera nem apaga pela internet;
+-- correções são feitas pela coordenação no Table Editor do Supabase.
 alter table public.visitas enable row level security;
 alter table public.casas_novas enable row level security;
+alter table public.contatos enable row level security;
+alter table public.config enable row level security;
 
 drop policy if exists "ler visitas" on public.visitas;
 drop policy if exists "inserir visitas" on public.visitas;
 drop policy if exists "ler casas novas" on public.casas_novas;
 drop policy if exists "inserir casas novas" on public.casas_novas;
+drop policy if exists "inserir contatos" on public.contatos;
 
 create policy "ler visitas"         on public.visitas     for select to anon using (true);
 create policy "inserir visitas"     on public.visitas     for insert to anon with check (true);
 create policy "ler casas novas"     on public.casas_novas for select to anon using (true);
 create policy "inserir casas novas" on public.casas_novas for insert to anon with check (true);
+create policy "inserir contatos"    on public.contatos    for insert to anon with check (true);
+
+-- Leitura dos contatos pelo painel: só com o código da coordenação.
+create or replace function public.contatos_coordenacao(codigo text)
+returns setof public.contatos
+language sql
+security definer
+set search_path = public
+as $$
+  select c.* from public.contatos c
+  where exists (
+    select 1 from public.config
+    where chave = 'codigo_coordenacao' and lower(valor) = lower(trim(codigo))
+  )
+  order by c.criado_em desc;
+$$;
+revoke all on function public.contatos_coordenacao(text) from public;
+grant execute on function public.contatos_coordenacao(text) to anon;
+
+insert into public.config (chave, valor) values ('codigo_coordenacao', 'TROQUE-ESTE-CODIGO')
+on conflict (chave) do update set valor = excluded.valor;

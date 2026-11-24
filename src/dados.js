@@ -11,7 +11,7 @@ export async function montarEstado(base) {
   const [visitas, novas] = await Promise.all([listarVisitas(), listarCasasNovas()]);
   const casas = base.casas.concat(novas.map((n) => ({
     id: n.id,
-    logradouro: n.descricao || 'Casa adicionada pelo GPS',
+    logradouro: n.descricao || 'Ponto marcado no mapa',
     numero: '',
     complemento: '',
     localidade: n.localidade || '',
@@ -45,6 +45,8 @@ function agrupar(casas) {
   const grupos = [];
   const chave = (i, j) => `${i}:${j}`;
   for (const c of casas) {
+    // Pontos marcados no mapa pelas equipes não se juntam com os do IBGE.
+    if (c.especie === ESPECIE_CASA_NOVA) { grupos.push({ id: c.id, lat: c.lat, lng: c.lng, casas: [c] }); continue; }
     const i = Math.floor(c.lat / passo), j = Math.floor(c.lng / passo);
     let achou = null;
     for (let di = -1; di <= 1 && !achou; di++) {
@@ -68,39 +70,27 @@ function agrupar(casas) {
 }
 
 // Ordem de prioridade para colorir um grupo: o que ainda falta fazer aparece primeiro.
-const PRIORIDADE = [null, 'amarelo', 'verde', 'vermelho'];
+const PRIORIDADE = [null, 'amarelo', 'laranja', 'verde', 'azul', 'cinza', 'vermelho'];
 function resumoGrupo(g) {
   const status = g.casas.map((c) => c.ultima?.status || null);
-  const principal = PRIORIDADE.find((s) => status.includes(s));
-  const visitadoQualquer = status.find((s) => s);
   return {
-    principal,
-    parcial: status.includes(null) && !!visitadoQualquer,
-    visitadoQualquer,
-    casa: g.casas.some((c) => c.especie === 1 || c.especie === 2 || c.especie === ESPECIE_CASA_NOVA),
-    nova: g.casas.some((c) => c.especie === ESPECIE_CASA_NOVA),
+    principal: PRIORIDADE.find((s) => status.includes(s)),
+    parcial: status.includes(null) && status.some(Boolean),
+    visitadoQualquer: status.find(Boolean),
   };
 }
 
 export function estiloGrupo(g, selecionado, zoom) {
   const r = raioPorZoom(zoom) + (g.casas.length > 1 ? 1 : 0);
   const s = resumoGrupo(g);
-  const fill = s.principal ? STATUS[s.principal].cor : COR_NAO_VISITADA;
-  if (selecionado) return { radius: r + 5, color: '#111827', weight: 4, fillColor: fill, fillOpacity: 1 };
-  if (!s.casa && !s.visitadoQualquer) {
-    return { radius: r, color: '#64748b', weight: Math.max(1.5, r / 3), fillColor: '#ffffff', fillOpacity: 0.9 };
+  if (selecionado) {
+    return { radius: r + 5, color: '#111827', weight: 4, fillColor: s.principal ? STATUS[s.principal].cor : '#ffffff', fillOpacity: 1 };
   }
-  if (s.parcial) {
-    // Parte das moradias visitada: miolo cinza com anel da cor da visita.
-    return { radius: r + 1, color: STATUS[s.visitadoQualquer].cor, weight: Math.max(2, r / 2.5), fillColor: fill, fillOpacity: 1 };
-  }
-  return {
-    radius: s.principal ? r + 1 : r,
-    color: s.nova ? '#2563eb' : '#ffffff',
-    weight: s.nova ? 2.5 : r >= 6 ? 1.5 : 1,
-    fillColor: fill,
-    fillOpacity: s.principal ? 1 : 0.85,
-  };
+  // Endereço do IBGE ainda não visitado (só aparece no modo "todos os endereços"): anel vazio.
+  if (!s.principal) return { radius: r, color: '#334155', weight: Math.max(1.5, r / 3), fillColor: '#ffffff', fillOpacity: 0.7 };
+  // Parte das moradias do ponto visitada: anel na cor da visita.
+  if (s.parcial) return { radius: r + 1, color: STATUS[s.visitadoQualquer].cor, weight: Math.max(2.5, r / 2), fillColor: '#ffffff', fillOpacity: 0.9 };
+  return { radius: r + 2, color: '#ffffff', weight: 2, fillColor: STATUS[s.principal].cor, fillOpacity: 1 };
 }
 
 // Desenha os grupos no mapa. Com zoom de perto, mostra quantas moradias há no ponto.
@@ -122,7 +112,7 @@ export function desenharGrupos(camada, grupos, { zoom, selecionada = null, aoToc
 }
 
 export function nomeEspecie(base, c) {
-  if (c.especie === ESPECIE_CASA_NOVA) return 'Casa adicionada pelo GPS';
+  if (c.especie === ESPECIE_CASA_NOVA) return 'Marcado pela equipe';
   return base.especies[c.especie] || 'Outro';
 }
 

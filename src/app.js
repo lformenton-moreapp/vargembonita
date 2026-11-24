@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { registerSW } from 'virtual:pwa-register';
 import { carregarCasas, carregarEquipes, MODO_DEMO, STATUS } from './config.js';
 import {
-  contarPendentes, iniciarSincronizacaoAutomatica, salvarCasaNova, salvarVisita, sincronizar, ultimoErro,
+  contarPendentes, iniciarSincronizacaoAutomatica, salvarCasaNova, salvarContato, salvarVisita, sincronizar, ultimoErro,
 } from './store.js';
 import {
   criarMapa, dataHora, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie,
@@ -19,7 +19,7 @@ const FILTROS = [
   { nome: 'todos os endereços do IBGE', ok: () => true },
 ];
 
-let base, estado, mapa, camada, camadaToque, equipe, marcadorEu;
+let base, estado, mapa, camada, camadaToque, equipe, corEquipe, marcadorEu;
 let selecionada = null;
 let filtro = 0;
 
@@ -27,7 +27,9 @@ async function iniciar() {
   const [equipes, casas] = await Promise.all([carregarEquipes(), carregarCasas()]);
   base = casas;
   const salva = localStorage.getItem(CHAVE_EQUIPE);
-  equipe = equipes.equipes.find((e) => e.nome === salva)?.nome;
+  const eq = equipes.equipes.find((e) => e.nome === salva);
+  equipe = eq?.nome;
+  corEquipe = eq?.cor;
   if (equipe) abrirMapa();
   else mostrarEntrada(equipes);
 }
@@ -36,7 +38,7 @@ function mostrarEntrada(equipes) {
   $('#tela-entrada').hidden = false;
   $('#tela-mapa').hidden = true;
   $('#sel-equipe').innerHTML = '<option value="">Selecione…</option>' +
-    equipes.equipes.map((e) => `<option>${esc(e.nome)}</option>`).join('');
+    equipes.equipes.map((e) => `<option value="${esc(e.nome)}">Equipe ${esc(e.nome)}</option>`).join('');
   $('#form-entrada').onsubmit = (ev) => {
     ev.preventDefault();
     const e = equipes.equipes.find((x) => x.nome === $('#sel-equipe').value);
@@ -46,6 +48,7 @@ function mostrarEntrada(equipes) {
     }
     localStorage.setItem(CHAVE_EQUIPE, e.nome);
     equipe = e.nome;
+    corEquipe = e.cor;
     abrirMapa();
   };
 }
@@ -53,7 +56,7 @@ function mostrarEntrada(equipes) {
 async function abrirMapa() {
   $('#tela-entrada').hidden = true;
   $('#tela-mapa').hidden = false;
-  $('#nome-equipe').textContent = equipe;
+  $('#nome-equipe').innerHTML = `${corEquipe ? `<span class="cor-equipe" style="background:${esc(corEquipe)}"></span>` : ''}Equipe ${esc(equipe)}`;
   if (!mapa) {
     mapa = criarMapa('mapa');
     camada = L.layerGroup().addTo(mapa);
@@ -136,20 +139,24 @@ function fecharFolha() {
 $('#folha').addEventListener('click', (ev) => { if (ev.target.id === 'folha') fecharFolha(); });
 
 function historicoHtml(c) {
-  if (!c.visitas.length) return '<p class="vazio">Nenhuma visita registrada ainda.</p>';
-  return '<ul class="historico">' + [...c.visitas].reverse().map((v) => `
+  if (!c || !c.visitas.length) return '<p class="vazio">Nenhuma visita registrada ainda.</p>';
+  return '<ul class="historico">' + [...c.visitas].reverse().map((v) => {
+    const st = STATUS[v.status] || { cor: '#9ca3af', curto: v.status };
+    return `
     <li>
-      <span class="ponto" style="background:${STATUS[v.status].cor}"></span>
+      <span class="ponto" style="background:${st.cor}"></span>
       <div>
-        <strong>${esc(STATUS[v.status].curto)}</strong>
+        <strong>${esc(st.curto)}</strong>
         ${v.biblia ? ` · ${v.qtd_biblias} bíblia${v.qtd_biblias > 1 ? 's' : ''}` : ''}
+        ${v.tem_contato ? ' · 📇 contato registrado' : ''}
         <div class="meta">${dataHora(v.criado_em)} · ${esc(v.equipe)}${v.pendente && !MODO_DEMO ? ' · <em>pendente</em>' : ''}</div>
         ${v.observacao ? `<div class="obs">${esc(v.observacao)}</div>` : ''}
       </div>
-    </li>`).join('') + '</ul>';
+    </li>`;
+  }).join('') + '</ul>';
 }
 
-// Vários cadastros no mesmo ponto (ex.: casa da frente e dos fundos).
+// Vários cadastros do IBGE no mesmo ponto (só no modo "todos os endereços").
 function abrirGrupo(g) {
   selecionada = g.casas[0].id;
   desenhar();
@@ -160,14 +167,24 @@ function abrirGrupo(g) {
     <div class="lista-grupo">
       ${g.casas.map((c) => `
         <button class="item-grupo" data-id="${esc(c.id)}">
-          <span class="ponto" style="background:${c.ultima ? STATUS[c.ultima.status].cor : '#9ca3af'}"></span>
+          <span class="ponto" style="background:${c.ultima ? STATUS[c.ultima.status]?.cor : '#fff'}"></span>
           <span><strong>${esc(endereco(c))}</strong>
-          <small>${esc([nomeEspecie(base, c), c.estabelecimento, c.ultima ? STATUS[c.ultima.status].curto : 'Não visitada'].filter(Boolean).join(' · '))}</small></span>
+          <small>${esc([nomeEspecie(base, c), c.estabelecimento, c.ultima ? STATUS[c.ultima.status]?.curto : 'Não visitada'].filter(Boolean).join(' · '))}</small></span>
         </button>`).join('')}
     </div>
   `);
   $('#folha-corpo .fechar').onclick = fecharFolha;
   $('#folha-corpo').querySelectorAll('.item-grupo').forEach((b) => (b.onclick = () => abrirCasa(b.dataset.id)));
+}
+
+const distM = (a, b) => Math.hypot((a.lat - b.lat) * 111000, (a.lng - b.lng) * 104000);
+
+// Toque no telhado: abre direto o formulário para um ponto novo naquele lugar.
+function tocarNoMapa(ll) {
+  camadaToque.clearLayers();
+  L.circleMarker(ll, { radius: 12, color: '#fff', weight: 3, fillColor: '#111827', fillOpacity: 0.45, interactive: false })
+    .addTo(camadaToque);
+  abrirFormulario({ ponto: { lat: ll.lat, lng: ll.lng } });
 }
 
 function abrirCasa(id) {
@@ -176,65 +193,101 @@ function abrirCasa(id) {
   selecionada = id;
   camadaToque.clearLayers();
   desenhar();
-  const grupo = estado.grupoDe.get(id);
+  abrirFormulario({ casa: c });
+}
+
+// Formulário da visita. `alvo` é { casa } (ponto que já existe) ou { ponto: {lat, lng, precisao} } (novo).
+function abrirFormulario(alvo) {
+  const c = alvo.casa;
+  const pos = c || alvo.ponto;
+  const prox = maisProxima([pos.lat, pos.lng]);
+  const perto = prox && distM(prox, pos) <= 60 ? prox : null;
+  const grupo = c && estado.grupoDe.get(c.id);
+
+  let titulo, meta;
+  if (c) {
+    titulo = endereco(c);
+    meta = [c.localidade, nomeEspecie(base, c), c.estabelecimento].filter(Boolean).join(' · ');
+  } else {
+    titulo = 'Registrar visita aqui';
+    meta = [perto ? `Perto de ${endereco(perto)}` : 'Sem endereço do IBGE por perto', prox?.localidade,
+      alvo.ponto.precisao ? `GPS ±${alvo.ponto.precisao} m` : ''].filter(Boolean).join(' · ');
+  }
 
   abrirFolha(`
     <button class="fechar" aria-label="Fechar">✕</button>
     ${grupo && grupo.casas.length > 1 ? `<button class="voltar-grupo" type="button">← Outros ${grupo.casas.length - 1} endereço(s) neste ponto</button>` : ''}
-    <h2>${esc(endereco(c))}</h2>
-    <p class="meta">${esc([c.localidade, nomeEspecie(base, c), c.estabelecimento].filter(Boolean).join(' · '))}</p>
-    <a class="btn btn-leve btn-bloco" href="${linkRota(c)}" target="_blank" rel="noopener">🧭 Ir até aqui (Google Maps)</a>
+    <h2>${esc(titulo)}</h2>
+    <p class="meta">${esc(meta)}</p>
 
-    <h3>Como foi a visita?</h3>
-    <div class="status-botoes">
-      ${Object.entries(STATUS).map(([k, s]) => `
-        <button type="button" class="btn-status" data-status="${k}" style="--cor:${s.cor}">
-          <span class="ponto" style="background:${s.cor}"></span>${esc(s.nome)}
+    <div class="status-grade">
+      ${Object.entries(STATUS).map(([k, st]) => `
+        <button type="button" class="btn-status" data-status="${k}" style="--cor:${st.cor}">
+          <span class="ponto" style="background:${st.cor}"></span>${esc(st.nome)}
         </button>`).join('')}
     </div>
 
-    <h3>Bíblia entregue?</h3>
-    <div class="linha">
-      <div class="seg">
-        <button type="button" data-biblia="1">Sim</button>
-        <button type="button" data-biblia="0">Não</button>
+    <div id="detalhes" hidden>
+      <div id="bloco-biblia">
+        <h3>Bíblia entregue?</h3>
+        <div class="linha">
+          <div class="seg">
+            <button type="button" data-biblia="1">Sim</button>
+            <button type="button" data-biblia="0">Não</button>
+          </div>
+          <div class="contador" id="contador">
+            <button type="button" data-qtd="-1">−</button>
+            <output id="qtd">1</output>
+            <button type="button" data-qtd="1">+</button>
+          </div>
+        </div>
       </div>
-      <div class="contador" id="contador">
-        <button type="button" data-qtd="-1">−</button>
-        <output id="qtd">1</output>
-        <button type="button" data-qtd="1">+</button>
+
+      <div id="bloco-contato">
+        <h3>Contato para continuidade</h3>
+        <label>Nome<input id="ct-nome" maxlength="80" autocomplete="off" /></label>
+        <label>Telefone / WhatsApp<input id="ct-tel" type="tel" maxlength="20" autocomplete="off" placeholder="(37) 9 9999-9999" /></label>
+        <label class="consentimento"><input id="ct-ok" type="checkbox" />
+          <span>A pessoa autorizou guardar o nome e o telefone para a igreja entrar em contato.</span></label>
+        <p class="dica">Só a coordenação vê esses dados.</p>
       </div>
+
+      <h3 id="obs-titulo">Observação <small>(opcional)</small></h3>
+      <textarea id="obs" maxlength="200" rows="2"></textarea>
+      <p class="dica" id="obs-dica">⚠️ Não escreva nomes, telefones ou dados pessoais aqui.</p>
+
+      <button id="btn-salvar" class="btn btn-primario btn-grande">Salvar</button>
     </div>
 
-    <h3>Observação <small>(opcional)</small></h3>
-    <textarea id="obs" maxlength="200" rows="2"
-      placeholder="Ex.: pediram para voltar à tarde"></textarea>
-    <p class="dica">⚠️ Não escreva nomes, telefones ou dados pessoais dos moradores.</p>
-
-    <button id="btn-salvar" class="btn btn-primario btn-grande" disabled>Escolha como foi a visita</button>
-
-    <h3>Histórico desta casa</h3>
-    <div id="historico">${historicoHtml(c)}</div>
+    ${c ? `<a class="btn btn-leve btn-bloco" href="${linkRota(c)}" target="_blank" rel="noopener">🧭 Ir até aqui (Google Maps)</a>
+    <h3>Histórico deste ponto</h3>
+    <div id="historico">${historicoHtml(c)}</div>` : ''}
   `);
 
   const f = { status: null, biblia: false, qtd: 1 };
   const corpo = $('#folha-corpo');
   const render = () => {
+    const st = STATUS[f.status];
     corpo.querySelectorAll('.btn-status').forEach((b) => b.classList.toggle('ativo', b.dataset.status === f.status));
+    $('#detalhes').hidden = !st;
+    if (!st) return;
+    $('#bloco-biblia').hidden = st.biblia === null;
+    $('#bloco-contato').hidden = !st.contato;
     corpo.querySelectorAll('[data-biblia]').forEach((b) => b.classList.toggle('ativo', (b.dataset.biblia === '1') === f.biblia));
     $('#contador').classList.toggle('desligado', !f.biblia);
     $('#qtd').textContent = f.qtd;
-    const s = $('#btn-salvar');
-    s.disabled = !f.status;
-    s.textContent = f.status ? 'Salvar visita' : 'Escolha como foi a visita';
+    const azul = f.status === 'azul';
+    $('#obs-titulo').innerHTML = azul ? 'Qual comércio ou escola? <small>(observação)</small>' : 'Observação <small>(opcional)</small>';
+    $('#obs').placeholder = azul ? 'Ex.: Escola Municipal, mercado, padaria…' : f.status === 'amarelo' ? 'Ex.: voltar à tarde' : '';
   };
   corpo.querySelector('.fechar').onclick = fecharFolha;
   const voltar = corpo.querySelector('.voltar-grupo');
   if (voltar) voltar.onclick = () => abrirGrupo(grupo);
   corpo.querySelectorAll('.btn-status').forEach((b) => (b.onclick = () => {
     f.status = b.dataset.status;
-    f.biblia = f.status === 'verde';
+    f.biblia = STATUS[f.status].biblia === true;
     render();
+    $('#detalhes').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }));
   corpo.querySelectorAll('[data-biblia]').forEach((b) => (b.onclick = () => { f.biblia = b.dataset.biblia === '1'; render(); }));
   corpo.querySelectorAll('[data-qtd]').forEach((b) => (b.onclick = () => {
@@ -242,64 +295,53 @@ function abrirCasa(id) {
     f.qtd = Math.min(20, Math.max(1, f.qtd + Number(b.dataset.qtd)));
     render();
   }));
+
   $('#btn-salvar').onclick = async () => {
-    await salvarVisita({
-      casa_id: c.id,
+    const st = STATUS[f.status];
+    let contato = null;
+    if (st.contato) {
+      const nome = $('#ct-nome').value.trim();
+      const telefone = $('#ct-tel').value.trim();
+      if (nome || telefone) {
+        if (!$('#ct-ok').checked) {
+          avisar('Marque que a pessoa autorizou guardar o contato (ou apague nome e telefone).');
+          return;
+        }
+        contato = { nome, telefone };
+      }
+    }
+    const btn = $('#btn-salvar');
+    btn.disabled = true;
+
+    let casaId = c?.id;
+    if (!c) {
+      const nova = await salvarCasaNova({
+        lat: +alvo.ponto.lat.toFixed(6),
+        lng: +alvo.ponto.lng.toFixed(6),
+        precisao_m: alvo.ponto.precisao || null,
+        descricao: perto ? `Perto de ${endereco(perto)}` : '',
+        cnefe_id: perto?.id || null,
+        localidade: prox?.localidade || '',
+        equipe,
+      });
+      casaId = nova.id;
+    }
+    const visita = await salvarVisita({
+      casa_id: casaId,
       equipe,
       status: f.status,
-      biblia: f.biblia,
-      qtd_biblias: f.biblia ? f.qtd : 0,
+      biblia: st.biblia !== null && f.biblia,
+      qtd_biblias: st.biblia !== null && f.biblia ? f.qtd : 0,
       observacao: $('#obs').value.trim(),
+      tem_contato: !!contato,
     });
+    if (contato) {
+      await salvarContato({ ...contato, consentimento: true, visita_id: visita.id, casa_id: casaId, equipe });
+    }
     fecharFolha();
     avisar(MODO_DEMO || !navigator.onLine ? 'Visita salva no aparelho ✓' : 'Visita salva ✓');
   };
   render();
-}
-
-// ---------- Toque no telhado ----------
-
-const RAIO_BUSCA_M = 40;
-const distM = (a, b) => Math.hypot((a.lat - b.lat) * 111000, (a.lng - b.lng) * 104000);
-
-function tocarNoMapa(ll) {
-  camadaToque.clearLayers();
-  L.circleMarker(ll, { radius: 12, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 0.5, interactive: false })
-    .addTo(camadaToque);
-  const perto = estado.casas
-    .map((c) => ({ c, d: distM(c, { lat: ll.lat, lng: ll.lng }) }))
-    .filter((x) => x.d <= RAIO_BUSCA_M)
-    .sort((a, b) => a.d - b.d)
-    .slice(0, 8);
-
-  abrirFolha(`
-    <button class="fechar" aria-label="Fechar">✕</button>
-    <h2>Qual é esta casa?</h2>
-    <p class="meta">${perto.length ? 'Endereços do IBGE mais perto de onde você tocou:' : 'Nenhum endereço do IBGE perto daqui.'}</p>
-    <div class="lista-grupo">
-      ${perto.map(({ c, d }) => `
-        <button class="item-grupo" data-id="${esc(c.id)}">
-          <span class="ponto" style="background:${c.ultima ? STATUS[c.ultima.status].cor : '#9ca3af'}"></span>
-          <span><strong>${esc(endereco(c))}</strong>
-          <small>${esc([`a ${Math.round(d)} m`, nomeEspecie(base, c), c.estabelecimento, c.ultima ? STATUS[c.ultima.status].curto : 'Não visitada'].filter(Boolean).join(' · '))}</small></span>
-        </button>`).join('')}
-      <button id="btn-aqui" class="btn btn-leve btn-grande">Não está na lista – registrar neste local</button>
-    </div>
-  `);
-  $('#folha-corpo .fechar').onclick = fecharFolha;
-  $('#folha-corpo').querySelectorAll('.item-grupo').forEach((b) => (b.onclick = () => abrirCasa(b.dataset.id)));
-  $('#btn-aqui').onclick = async () => {
-    const prox = maisProxima([ll.lat, ll.lng]);
-    const nova = await salvarCasaNova({
-      lat: +ll.lat.toFixed(6),
-      lng: +ll.lng.toFixed(6),
-      descricao: 'Casa marcada no mapa',
-      localidade: prox?.localidade || '',
-      equipe,
-    });
-    estado = await montarEstado(base);
-    abrirCasa(nova.id);
-  };
 }
 
 // ---------- GPS ----------
@@ -314,7 +356,7 @@ function posicaoAtual() {
 function mostrarEu(pos) {
   const ll = [pos.coords.latitude, pos.coords.longitude];
   if (!marcadorEu) {
-    marcadorEu = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1, interactive: false }).addTo(mapa);
+    marcadorEu = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 3, fillColor: '#0ea5e9', fillOpacity: 1, interactive: false }).addTo(mapa);
   } else marcadorEu.setLatLng(ll);
   return ll;
 }
@@ -330,6 +372,7 @@ $('#btn-local').onclick = async () => {
   }
 };
 
+// Registrar a casa onde a equipe está (útil na zona rural, sem ver o telhado).
 $('#btn-adicionar').onclick = async () => {
   avisar('Obtendo GPS…');
   let pos;
@@ -342,30 +385,7 @@ $('#btn-adicionar').onclick = async () => {
   avisar('');
   const ll = mostrarEu(pos);
   mapa.setView(ll, Math.max(mapa.getZoom(), 17));
-  const prox = maisProxima(ll);
-  abrirFolha(`
-    <button class="fechar" aria-label="Fechar">✕</button>
-    <h2>Adicionar casa aqui</h2>
-    <p class="meta">Precisão do GPS: ~${Math.round(pos.coords.accuracy)} m${prox ? ` · perto de ${esc(prox.localidade)}` : ''}</p>
-    <label>Rua e número ou ponto de referência <small>(opcional)</small>
-      <input id="desc-casa" maxlength="120" placeholder="Ex.: Rua das Flores, 120 / casa azul após a ponte" />
-    </label>
-    <p class="dica">⚠️ Não escreva nomes ou dados pessoais dos moradores.</p>
-    <button id="btn-criar" class="btn btn-primario btn-grande">Salvar casa e registrar visita</button>
-  `);
-  $('#folha-corpo .fechar').onclick = fecharFolha;
-  $('#btn-criar').onclick = async () => {
-    const nova = await salvarCasaNova({
-      lat: +ll[0].toFixed(6),
-      lng: +ll[1].toFixed(6),
-      precisao_m: Math.round(pos.coords.accuracy),
-      descricao: $('#desc-casa').value.trim(),
-      localidade: prox?.localidade || '',
-      equipe,
-    });
-    estado = await montarEstado(base);
-    abrirCasa(nova.id);
-  };
+  abrirFormulario({ ponto: { lat: ll[0], lng: ll[1], precisao: Math.round(pos.coords.accuracy) } });
 };
 
 function maisProxima([lat, lng]) {

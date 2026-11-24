@@ -5,7 +5,7 @@ Web app (PWA, para celular) que mapeia a entrega de bíblias casa a casa em Varg
 - **App das equipes** (`/`): mapa de satélite; a equipe **toca no telhado** e o app mostra os endereços do IBGE mais próximos para confirmar qual é (ou registra só pelo local). Só as casas já visitadas aparecem marcadas. Também tem "Ir até aqui" pelo Google Maps, "Casa onde estou (GPS)" e funcionamento sem sinal.
 - **Painel da coordenação** (`/painel/`): contadores, mapa geral, placar por equipe, lista de casas amarelas para a rodada de retorno, resumo por localidade e exportação em CSV.
 
-Cores: verde = recebidos, bíblia entregue · amarelo = ninguém em casa / voltar depois · vermelho = não quiseram receber.
+Pins: 🟢 verde = aceitou a bíblia · 🟠 laranja = querem dar continuidade (pede nome e telefone, com autorização) · 🟡 amarelo = tentar novamente · 🔵 azul = comércio/escola (observação) · ⚫ cinza = abandonada/em construção · 🔴 vermelho = não quiseram receber.
 O botão "Mostrando: …" alterna entre só as visitadas e todos os endereços do IBGE (cinza = não visitada; anel = comércio, fazenda, igreja, escola…). Endereços no mesmo terreno aparecem como um ponto com número. O fundo começa em satélite (imagens Esri); o botão "Mapa" troca para o mapa de ruas.
 
 ## Dados das casas
@@ -50,20 +50,20 @@ Edite `public/equipes.json`:
 {
   "coordenacao": "painel2026",
   "equipes": [
-    { "nome": "Equipe Azul", "codigo": "azul123" }
+    { "nome": "Azul", "codigo": "azul123", "cor": "#2563eb" }
   ]
 }
 ```
 
 - `coordenacao`: código de acesso ao painel.
-- `equipes`: nome e código de cada equipe (maiúsculas e minúsculas são indiferentes).
+- `equipes`: nome, código e cor de cada equipe (no código, maiúsculas e minúsculas são indiferentes).
 
 Depois de editar, publique de novo. **Troque os códigos de exemplo antes da missão.** Os códigos servem para organizar as equipes, não como senha forte: quem abrir o arquivo `equipes.json` no navegador consegue lê-los. Não use o nome da equipe como chave depois de a missão começar, porque o placar agrupa as visitas pelo nome.
 
 ## Configurar o Supabase (sincronizar entre celulares)
 
 1. Crie um projeto gratuito em [supabase.com](https://supabase.com).
-2. Em **SQL Editor**, cole e rode o conteúdo de `supabase/schema.sql`. Ele cria as tabelas `visitas` e `casas_novas` com permissão para ler e inserir, mas não para alterar ou apagar.
+2. Abra `supabase/schema.sql`, troque `TROQUE-ESTE-CODIGO` (no fim do arquivo) pelo código da coordenação e, em **SQL Editor**, cole e rode o conteúdo. Ele cria as tabelas `visitas`, `casas_novas` e `contatos`. Visitas e pontos podem ser lidos e inseridos, mas não alterados ou apagados. Os contatos (nome e telefone do pin laranja) só podem ser inseridos pelas equipes; o painel os lê com o código da coordenação, e o celular apaga sua cópia assim que envia.
 3. Em **Project Settings › API**, copie a *Project URL* e a chave *anon public*.
 4. Crie `.env.local` a partir de `.env.example`:
 
@@ -93,7 +93,7 @@ O Netlify também funciona com as mesmas configurações.
 
 ## Dados pessoais (LGPD)
 
-O app registra o endereço e o resultado da visita, não as pessoas. O campo de observação avisa para não escrever nomes, telefones ou detalhes pessoais dos moradores. Oriente as equipes no treinamento.
+O app registra o local e o resultado da visita. Nome e telefone só são guardados no pin laranja, quando a pessoa autoriza (caixa de autorização obrigatória), e só a coordenação os vê. O campo de observação avisa para não escrever nomes, telefones ou detalhes pessoais dos moradores. Oriente as equipes no treinamento.
 
 ## Estrutura
 

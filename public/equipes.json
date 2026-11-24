@@ -1,10 +1,11 @@
 {
   "coordenacao": "painel2026",
   "equipes": [
-    { "nome": "Equipe Azul", "codigo": "azul123" },
-    { "nome": "Equipe Verde", "codigo": "verde123" },
-    { "nome": "Equipe Laranja", "codigo": "laranja123" },
-    { "nome": "Equipe Roxa", "codigo": "roxa123" },
-    { "nome": "Equipe Rural 1", "codigo": "rural123" }
+    { "nome": "Verde Claro", "codigo": "verdeclaro123", "cor": "#86efac" },
+    { "nome": "Verde Escuro", "codigo": "verdeescuro123", "cor": "#166534" },
+    { "nome": "Azul", "codigo": "azul123", "cor": "#2563eb" },
+    { "nome": "Amarelo", "codigo": "amarelo123", "cor": "#facc15" },
+    { "nome": "Laranja Claro", "codigo": "laranjaclaro123", "cor": "#fdba74" },
+    { "nome": "Laranja Escuro", "codigo": "laranjaescuro123", "cor": "#c2410c" }
   ]
 }

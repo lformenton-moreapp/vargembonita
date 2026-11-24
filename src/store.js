@@ -7,17 +7,20 @@
 import { MODO_DEMO, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 const NOME_DB = 'missao-vargem-bonita';
-const TABELAS = { visitas: 'visitas', casasNovas: 'casas_novas' };
+const TABELAS = { visitas: 'visitas', casasNovas: 'casas_novas', contatos: 'contatos' };
 
 let dbPromise;
 function db() {
   if (!dbPromise) {
     dbPromise = new Promise((ok, erro) => {
-      const req = indexedDB.open(NOME_DB, 1);
-      req.onupgradeneeded = () => {
+      const req = indexedDB.open(NOME_DB, 2);
+      req.onupgradeneeded = (ev) => {
         const d = req.result;
-        d.createObjectStore('visitas', { keyPath: 'id' }).createIndex('casa_id', 'casa_id');
-        d.createObjectStore('casasNovas', { keyPath: 'id' });
+        if (ev.oldVersion < 1) {
+          d.createObjectStore('visitas', { keyPath: 'id' }).createIndex('casa_id', 'casa_id');
+          d.createObjectStore('casasNovas', { keyPath: 'id' });
+        }
+        if (ev.oldVersion < 2) d.createObjectStore('contatos', { keyPath: 'id' });
       };
       req.onsuccess = () => ok(req.result);
       req.onerror = () => erro(req.error);
@@ -41,6 +44,7 @@ const todos = (store) => tx(store, 'readonly', (s) => s.getAll());
 
 export const listarVisitas = () => todos('visitas');
 export const listarCasasNovas = () => todos('casasNovas');
+export const listarContatosLocais = () => todos('contatos');
 
 function avisarMudanca() {
   window.dispatchEvent(new CustomEvent('dados-mudaram'));
@@ -69,16 +73,26 @@ export async function salvarCasaNova(c) {
   return registro;
 }
 
+// Nome e telefone (pin laranja). Ficam no celular só até serem enviados.
+export async function salvarContato(c) {
+  const registro = { ...c, id: c.id || novoId(), criado_em: c.criado_em || new Date().toISOString(), pendente: 1 };
+  await tx('contatos', 'readwrite', (s) => s.put(registro));
+  sincronizar();
+  return registro;
+}
+
 export async function contarPendentes() {
   if (MODO_DEMO) return 0;
   const [v, c] = await Promise.all([listarVisitas(), listarCasasNovas()]);
-  return v.filter((x) => x.pendente).length + c.filter((x) => x.pendente).length;
+  const k = await listarContatosLocais();
+  return v.filter((x) => x.pendente).length + c.filter((x) => x.pendente).length + k.length;
 }
 
 // Apaga tudo o que está guardado neste aparelho (usado no modo demonstração).
 export async function limparTudo() {
   await tx('visitas', 'readwrite', (s) => s.clear());
   await tx('casasNovas', 'readwrite', (s) => s.clear());
+  await tx('contatos', 'readwrite', (s) => s.clear());
   avisarMudanca();
 }
 
@@ -112,6 +126,25 @@ async function enviar(sb, store) {
   await tx(store, 'readwrite', (s) => pendentes.forEach((r) => s.put({ ...r, pendente: 0 })));
 }
 
+// Contatos: depois de enviados, são apagados do celular (privacidade).
+// Só a coordenação consegue lê-los no banco.
+async function enviarContatos(sb) {
+  const pendentes = await todos('contatos');
+  if (!pendentes.length) return;
+  const { error } = await sb.from('contatos')
+    .upsert(pendentes.map(semCamposLocais), { onConflict: 'id', ignoreDuplicates: true });
+  if (error) throw error;
+  await tx('contatos', 'readwrite', (s) => pendentes.forEach((r) => s.delete(r.id)));
+}
+
+export async function buscarContatosCoordenacao(codigo) {
+  if (MODO_DEMO) return listarContatosLocais();
+  const sb = await cliente();
+  const { data, error } = await sb.rpc('contatos_coordenacao', { codigo });
+  if (error) throw error;
+  return data;
+}
+
 async function baixar(sb, store) {
   const linhas = [];
   for (let de = 0; ; de += 1000) {
@@ -137,6 +170,7 @@ export function sincronizar() {
       const sb = await cliente();
       await enviar(sb, 'casasNovas');
       await enviar(sb, 'visitas');
+      await enviarContatos(sb);
       await baixar(sb, 'casasNovas');
       await baixar(sb, 'visitas');
       ultimoErro = null;

@@ -11,10 +11,15 @@ export const META_BIBLIAS = 1500;
 // Centro aproximado da sede de Vargem Bonita (MG).
 export const CENTRO_MAPA = [-20.3275, -46.3665];
 
+// Tipos de pin. `biblia`: pergunta da bíblia aparece e já vem marcada (true),
+// aparece desmarcada (false) ou não aparece (null).
 export const STATUS = {
-  verde: { nome: 'Recebidos, bíblia entregue', curto: 'Recebidos', cor: '#15803d' },
-  amarelo: { nome: 'Ninguém em casa / voltar depois', curto: 'Voltar depois', cor: '#eab308' },
-  vermelho: { nome: 'Não quiseram receber', curto: 'Recusaram', cor: '#dc2626' },
+  verde: { nome: 'Aceitou a bíblia', curto: 'Aceitou a bíblia', cor: '#16a34a', biblia: true },
+  laranja: { nome: 'Querem dar continuidade', curto: 'Continuidade', cor: '#f97316', biblia: true, contato: true },
+  amarelo: { nome: 'Tentar novamente', curto: 'Tentar novamente', cor: '#eab308', biblia: null },
+  azul: { nome: 'Comércio / escola', curto: 'Comércio/escola', cor: '#2563eb', biblia: false },
+  cinza: { nome: 'Abandonada / em construção', curto: 'Abandonada/obra', cor: '#6b7280', biblia: null },
+  vermelho: { nome: 'Não quiseram receber', curto: 'Não quiseram', cor: '#dc2626', biblia: null },
 };
 export const COR_NAO_VISITADA = '#9ca3af';
 
