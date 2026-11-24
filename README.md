@@ -10,9 +10,22 @@ O botão "Mostrando: …" alterna entre só as visitadas e todos os endereços d
 
 ## Divisão das áreas entre as equipes
 
-No painel, em **Divisão das áreas**: escolha a equipe e toque nos quarteirões (cidade) ou comunidades (zona rural) para entregá-los a ela; tocar de novo tira. A equipe vê sua área contornada na cor dela ao abrir o app e tem o botão **🎯 Minha área**. As outras áreas aparecem tracejadas na cor de cada equipe. Ninguém fica bloqueado de registrar fora da própria área.
+No painel, em **Divisão das áreas**: escolha a equipe e toque nas ruas (cidade) ou comunidades (zona rural) para entregá-las a ela; tocar de novo tira. Com "Selecionar a rua inteira" marcado, um toque pega todos os trechos da rua; desmarcado, vai trecho por trecho (de esquina a esquina). A equipe vê suas ruas destacadas na cor dela ao abrir o app e tem o botão **🎯 Minha área**. As ruas das outras equipes aparecem tracejadas. Ninguém fica bloqueado de registrar fora da própria área.
 
-Os contornos são gerados por `npm run dados` (`public/data/quarteiroes.json`) a partir das quadras do IBGE: 66 quarteirões na cidade e 41 comunidades rurais (na zona rural o IBGE usa uma "quadra 0" para o setor inteiro, então ali a área é a localidade). O contorno envolve os endereços de cada quadra com folga de 7 m, então é aproximado.
+As áreas são geradas por `npm run dados` (`scripts/gerar-areas.mjs` → `public/data/areas.json`):
+- **Ruas**: traçado do OpenStreetMap em `dados-fonte/ruas-osm.geojson` (© colaboradores do OpenStreetMap, licença ODbL), dividido nas esquinas. Cada endereço do IBGE vai para o trecho de rua mais próximo; o trecho é cortado para cobrir só a parte com casas. Hoje: 193 trechos, 1.137 endereços.
+- **Comunidades rurais**: endereços longe de qualquer rua, agrupados pela localidade do IBGE. Hoje: 40 comunidades, 745 endereços.
+
+Para atualizar o traçado das ruas, exporte de novo em overpass-turbo.eu (GeoJSON) com a consulta abaixo, substitua `dados-fonte/ruas-osm.geojson` e rode `npm run dados`:
+
+```
+[out:json][timeout:60];
+(
+  way["highway"](-20.3350,-46.3785,-20.3225,-46.3615);
+  way["highway"](-20.3755,-46.2850,-20.3650,-46.2725);
+);
+out geom;
+```
 
 ## Dados das casas
 

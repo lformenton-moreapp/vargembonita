@@ -35,7 +35,7 @@ export async function montarEstado(base) {
   for (const g of grupos) for (const c of g.casas) grupoDe.set(c.id, g);
   const porId = new Map(casas.map((c) => [c.id, c]));
   // Área (quarteirão/comunidade) de cada ponto; pontos marcados herdam a do endereço mais próximo.
-  for (const c of casas) c.area = c.q || porId.get(c.nova?.cnefe_id)?.q || null;
+  for (const c of casas) c.area = c.a || porId.get(c.nova?.cnefe_id)?.a || null;
   const areaDe = new Map(atribuicoes.map((a) => [a.quarteirao_id, a.equipe]));
   return { casas, visitas, grupos, grupoDe, porId, areaDe };
 }
@@ -183,40 +183,65 @@ export function raioPorZoom(zoom) {
   return 9;
 }
 
-// ---------- Áreas (quarteirões / comunidades) ----------
+// ---------- Áreas (trechos de rua / comunidades rurais) ----------
 
-const tamanho = (q) => {
+export function nomeArea(a) {
+  if (a.tipo !== 'rua') return `${a.nome} (zona rural)`;
+  if (a.de && a.ate) return `${a.nome}, entre ${a.de} e ${a.ate}`;
+  if (a.de || a.ate) return `${a.nome}, a partir de ${a.de || a.ate}`;
+  return a.nome;
+}
+
+export const pontosArea = (a) => a.linha || a.contorno;
+
+const tamanho = (a) => {
   let la0 = 90, la1 = -90, ln0 = 180, ln1 = -180;
-  for (const [la, ln] of q.contorno) { la0 = Math.min(la0, la); la1 = Math.max(la1, la); ln0 = Math.min(ln0, ln); ln1 = Math.max(ln1, ln); }
+  for (const [la, ln] of pontosArea(a)) { la0 = Math.min(la0, la); la1 = Math.max(la1, la); ln0 = Math.min(ln0, ln); ln1 = Math.max(ln1, ln); }
   return (la1 - la0) * (ln1 - ln0);
 };
 
-// Desenha as áreas. Maiores por baixo, para as pequenas continuarem clicáveis.
-// modo 'painel': todas, preenchidas na cor da equipe. modo 'equipe': destaca as da própria equipe.
-export function desenharAreas(camada, quarteiroes, areaDe, equipes, { modo, minhaEquipe, aoTocar, rotulo }) {
+// Desenha as áreas: comunidades (polígonos) por baixo, ruas (linhas) por cima.
+// modo 'painel': todas, na cor da equipe ou tracejadas em branco se livres.
+// modo 'equipe': destaca as da própria equipe; as das outras equipes ficam finas e tracejadas.
+export function desenharAreas(camada, areas, areaDe, equipes, { modo, minhaEquipe, aoTocar, rotulo }) {
   camada.clearLayers();
   const cor = (nome) => equipes.find((e) => e.nome === nome)?.cor || '#9ca3af';
-  const camadas = new Map();
-  for (const q of [...quarteiroes].sort((a, b) => tamanho(b) - tamanho(a))) {
-    const dono = areaDe.get(q.id);
-    let estilo;
-    if (modo === 'painel') {
-      estilo = dono
-        ? { color: cor(dono), weight: 2.5, fillColor: cor(dono), fillOpacity: 0.4 }
-        : { color: '#ffffff', weight: 1.5, dashArray: '4 4', fillColor: '#ffffff', fillOpacity: 0.08 };
-    } else if (dono === minhaEquipe) {
-      estilo = { color: cor(dono), weight: 4, fillColor: cor(dono), fillOpacity: 0.12, interactive: false };
-    } else if (dono) {
-      estilo = { color: cor(dono), weight: 1.5, dashArray: '6 6', opacity: 0.7, fill: false, interactive: false };
-    } else continue;
-    const pol = L.polygon(q.contorno, estilo).addTo(camada);
-    if (modo === 'painel') {
-      if (aoTocar) pol.on('click', () => aoTocar(q));
-      if (rotulo) pol.bindTooltip(() => rotulo(q), { sticky: true });
+  const comunidades = areas.filter((a) => a.tipo !== 'rua').sort((a, b) => tamanho(b) - tamanho(a));
+  const ruas = areas.filter((a) => a.tipo === 'rua');
+  for (const a of [...comunidades, ...ruas]) {
+    const dono = areaDe.get(a.id);
+    const minha = dono && dono === minhaEquipe;
+    const interativo = modo === 'painel';
+    let camadaPrincipal;
+    if (a.tipo === 'rua') {
+      if (modo === 'painel') {
+        if (dono) L.polyline(a.linha, { color: '#111827', weight: 10, opacity: 0.55, interactive: false }).addTo(camada);
+        camadaPrincipal = L.polyline(a.linha, dono
+          ? { color: cor(dono), weight: 6, opacity: 1 }
+          : { color: '#ffffff', weight: 4, opacity: 0.85, dashArray: '3 7' });
+      } else if (minha) {
+        L.polyline(a.linha, { color: '#111827', weight: 11, opacity: 0.55, interactive: false }).addTo(camada);
+        camadaPrincipal = L.polyline(a.linha, { color: cor(dono), weight: 7, opacity: 1, interactive: false });
+      } else if (dono) {
+        camadaPrincipal = L.polyline(a.linha, { color: cor(dono), weight: 3, opacity: 0.8, dashArray: '6 6', interactive: false });
+      } else continue;
+    } else {
+      if (modo === 'painel') {
+        camadaPrincipal = L.polygon(a.contorno, dono
+          ? { color: cor(dono), weight: 2.5, fillColor: cor(dono), fillOpacity: 0.35 }
+          : { color: '#ffffff', weight: 1.5, dashArray: '4 4', fillColor: '#ffffff', fillOpacity: 0.06 });
+      } else if (minha) {
+        camadaPrincipal = L.polygon(a.contorno, { color: cor(dono), weight: 4, fillColor: cor(dono), fillOpacity: 0.12, interactive: false });
+      } else if (dono) {
+        camadaPrincipal = L.polygon(a.contorno, { color: cor(dono), weight: 1.5, dashArray: '6 6', opacity: 0.7, fill: false, interactive: false });
+      } else continue;
     }
-    camadas.set(q.id, pol);
+    camadaPrincipal.addTo(camada);
+    if (interativo) {
+      if (aoTocar) camadaPrincipal.on('click', () => aoTocar(a));
+      if (rotulo) camadaPrincipal.bindTooltip(() => rotulo(a), { sticky: true });
+    }
   }
-  return camadas;
 }
 
 export function linkRota(c) {

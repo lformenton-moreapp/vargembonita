@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dados": "node scripts/gerar-casas.mjs",
+    "dados": "node scripts/gerar-casas.mjs && node scripts/gerar-areas.mjs",
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host"

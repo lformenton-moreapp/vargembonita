@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const entrada = resolve(raiz, process.argv[2] || '3170602_VARGEM_BONITA.csv');
 const saida = resolve(raiz, 'public/data/casas.json');
-const saidaQuarteiroes = resolve(raiz, 'public/data/quarteiroes.json');
 
 // Códigos de COD_ESPECIE segundo o dicionário do CNEFE 2022.
 const ESPECIES = {
@@ -78,51 +77,6 @@ for (const linha of linhas.slice(1)) {
 
 mkdirSync(dirname(saida), { recursive: true });
 writeFileSync(saida, JSON.stringify({ especies: ESPECIES, casas }));
-
-// ---------- Quarteirões ----------
-// O IBGE numera as quadras dentro de cada setor censitário. O contorno de
-// cada quarteirão é o "envelope" dos seus endereços, com uma folga de 7 m.
-const FOLGA_M = 7;
-const M_LAT = 111320;
-const M_LNG = 111320 * Math.cos((-20.33 * Math.PI) / 180);
-
-function envoltoria(pts) {
-  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const cruz = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const inf = [], sup = [];
-  for (const x of p) { while (inf.length >= 2 && cruz(inf.at(-2), inf.at(-1), x) <= 0) inf.pop(); inf.push(x); }
-  for (const x of p.reverse()) { while (sup.length >= 2 && cruz(sup.at(-2), sup.at(-1), x) <= 0) sup.pop(); sup.push(x); }
-  return inf.slice(0, -1).concat(sup.slice(0, -1));
-}
-
-const porQuadra = new Map();
-for (const c of casas) {
-  if (!porQuadra.has(c.q)) porQuadra.set(c.q, []);
-  porQuadra.get(c.q).push(c);
-}
-const quarteiroes = [];
-for (const [id, cs] of porQuadra) {
-  const pts = [];
-  for (const c of cs) {
-    for (let k = 0; k < 12; k++) {
-      const a = (k / 12) * 2 * Math.PI;
-      pts.push([c.lng + (Math.cos(a) * FOLGA_M) / M_LNG, c.lat + (Math.sin(a) * FOLGA_M) / M_LAT]);
-    }
-  }
-  const loc = Object.entries(cs.reduce((a, c) => ((a[c.localidade] = (a[c.localidade] || 0) + 1), a), {}))
-    .sort((a, b) => b[1] - a[1])[0][0];
-  quarteiroes.push({
-    id,
-    rural: id.startsWith('rural-'),
-    nome: id.startsWith('rural-') ? loc : `Quarteirão ${id}`,
-    localidade: loc,
-    enderecos: cs.length,
-    casas: cs.filter((c) => c.especie === 1 || c.especie === 2).length,
-    contorno: envoltoria(pts).map(([lng, lat]) => [+lat.toFixed(6), +lng.toFixed(6)]),
-  });
-}
-writeFileSync(saidaQuarteiroes, JSON.stringify(quarteiroes));
-console.log(`\n${quarteiroes.length} quarteirões gravados em ${saidaQuarteiroes}`);
 
 const conta = (f) => Object.entries(casas.reduce((a, x) => ((a[f(x)] = (a[f(x)] || 0) + 1), a), {}))
   .sort((a, b) => b[1] - a[1]);

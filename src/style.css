@@ -210,3 +210,5 @@ body.painel { height: auto; }
 .areas-bloco .nota { margin: 0; }
 #resumo-areas td:first-child, #resumo-areas th:first-child { text-align: left; }
 #resumo-areas td, #resumo-areas th { text-align: right; }
+.opcao-rua { display: flex; gap: .5rem; align-items: center; font-weight: 600; margin: 0 0 .8rem; }
+.opcao-rua input { width: 22px; height: 22px; margin: 0; }

@@ -2,12 +2,12 @@ import 'leaflet/dist/leaflet.css';
 import './style.css';
 import L from 'leaflet';
 import { registerSW } from 'virtual:pwa-register';
-import { carregarCasas, carregarEquipes, carregarQuarteiroes, MODO_DEMO, STATUS } from './config.js';
+import { carregarCasas, carregarEquipes, carregarAreas, MODO_DEMO, STATUS } from './config.js';
 import {
   contarPendentes, iniciarSincronizacaoAutomatica, salvarCasaNova, salvarContato, salvarVisita, sincronizar, ultimoErro,
 } from './store.js';
 import {
-  criarMapa, dataHora, desenharAreas, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie,
+  criarMapa, dataHora, desenharAreas, endereco, pontosArea, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie,
 } from './dados.js';
 
 registerSW({ immediate: true });
@@ -19,15 +19,15 @@ const FILTROS = [
   { nome: 'todos os endereços do IBGE', ok: () => true },
 ];
 
-let base, estado, mapa, camada, camadaToque, camadaAreas, equipe, corEquipe, marcadorEu, quarteiroes, listaEquipes;
+let base, estado, mapa, camada, camadaToque, camadaAreas, equipe, corEquipe, marcadorEu, areas, listaEquipes;
 let jaEnquadrou = false;
 let selecionada = null;
 let filtro = 0;
 
 async function iniciar() {
-  const [equipes, casas, qs] = await Promise.all([carregarEquipes(), carregarCasas(), carregarQuarteiroes()]);
+  const [equipes, casas, as] = await Promise.all([carregarEquipes(), carregarCasas(), carregarAreas()]);
   base = casas;
-  quarteiroes = qs;
+  areas = as;
   listaEquipes = equipes.equipes;
   const salva = localStorage.getItem(CHAVE_EQUIPE);
   const eq = equipes.equipes.find((e) => e.nome === salva);
@@ -90,7 +90,7 @@ $('#btn-filtro').onclick = () => {
 
 async function atualizar() {
   estado = await montarEstado(base);
-  desenharAreas(camadaAreas, quarteiroes, estado.areaDe, listaEquipes, { modo: 'equipe', minhaEquipe: equipe });
+  desenharAreas(camadaAreas, areas, estado.areaDe, listaEquipes, { modo: 'equipe', minhaEquipe: equipe });
   // Ao abrir, leva o mapa direto para a área da equipe (se a coordenação já definiu).
   if (!jaEnquadrou && minhasAreas().length) { jaEnquadrou = true; irParaMinhaArea(); }
   desenhar();
@@ -130,7 +130,7 @@ async function atualizarIndicador() {
 $('#indicador-sync').onclick = () => sincronizar();
 
 function minhasAreas() {
-  return quarteiroes.filter((q) => estado.areaDe.get(q.id) === equipe);
+  return areas.filter((a) => estado.areaDe.get(a.id) === equipe);
 }
 
 function irParaMinhaArea() {
@@ -139,7 +139,7 @@ function irParaMinhaArea() {
     avisar('A coordenação ainda não definiu a área da sua equipe.');
     return;
   }
-  mapa.fitBounds(L.latLngBounds(qs.flatMap((q) => q.contorno)), { padding: [30, 30], maxZoom: 18 });
+  mapa.fitBounds(L.latLngBounds(qs.flatMap(pontosArea)), { padding: [30, 30], maxZoom: 18 });
 }
 $('#btn-minha-area').onclick = irParaMinhaArea;
 

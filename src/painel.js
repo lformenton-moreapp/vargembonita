@@ -2,22 +2,23 @@ import 'leaflet/dist/leaflet.css';
 import './style.css';
 import L from 'leaflet';
 import { registerSW } from 'virtual:pwa-register';
-import { carregarCasas, carregarEquipes, carregarQuarteiroes, META_BIBLIAS, MODO_DEMO, STATUS } from './config.js';
+import { carregarCasas, carregarEquipes, carregarAreas, META_BIBLIAS, MODO_DEMO, STATUS } from './config.js';
 import {
   atribuirQuarteiroes, buscarContatosCoordenacao, gravarEmLote, iniciarSincronizacaoAutomatica, limparTudo, novoId, sincronizar, ultimaSync, ultimoErro,
 } from './store.js';
-import { criarMapa, dataHora, desenharAreas, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie } from './dados.js';
+import { criarMapa, dataHora, desenharAreas, endereco, esc, nomeArea, pontosArea, desenharGrupos, linkRota, montarEstado, nomeEspecie } from './dados.js';
 
 registerSW({ immediate: true });
 
 const $ = (s) => document.querySelector(s);
 const CHAVE = 'mvb-painel';
 const CASAS_OCUPADAS_CENSO = 876;
-let base, equipes, estado, mapa, camada, quarteiroes, mapaAreas, camadaAreas;
+let base, equipes, estado, mapa, camada, listaAreas, mapaAreas, camadaAreas;
+let ruaInteira = true;
 let equipeSel = null;
 
 async function iniciar() {
-  [equipes, base, quarteiroes] = await Promise.all([carregarEquipes(), carregarCasas(), carregarQuarteiroes()]);
+  [equipes, base, listaAreas] = await Promise.all([carregarEquipes(), carregarCasas(), carregarAreas()]);
   if (sessionStorage.getItem(CHAVE) === '1') return abrirPainel();
   $('#tela-entrada').hidden = false;
   $('#form-entrada').onsubmit = (ev) => {
@@ -48,7 +49,7 @@ async function abrirPainel() {
   await atualizar();
   const todos = L.latLngBounds(base.casas.map((c) => [c.lat, c.lng]));
   mapa.fitBounds(todos, { padding: [10, 10] });
-  const cidade = L.latLngBounds(quarteiroes.filter((q) => !q.rural && q.localidade === 'Centro').flatMap((q) => q.contorno));
+  const cidade = L.latLngBounds(listaAreas.filter((a) => a.tipo === 'rua' && a.localidade === 'Centro').flatMap(pontosArea));
   mapaAreas.fitBounds(cidade, { padding: [10, 10] });
 }
 
@@ -58,7 +59,7 @@ async function atualizar() {
   estado = await montarEstado(base);
   indicador();
   contadores();
-  areas();
+  desenharDivisao();
   desenharMapa();
   placar();
   amarelas();
@@ -200,17 +201,22 @@ function visitadosPorArea() {
   return m;
 }
 
-function areas() {
+function desenharDivisao() {
   const visit = visitadosPorArea();
-  desenharAreas(camadaAreas, quarteiroes, estado.areaDe, equipes.equipes, {
+  desenharAreas(camadaAreas, listaAreas, estado.areaDe, equipes.equipes, {
     modo: 'painel',
-    rotulo: (q) => `<b>${esc(q.nome)}</b>${q.rural ? ' (zona rural)' : ''}<br>${q.casas} casas no IBGE · ${visit.get(q.id) || 0} visitadas<br>${esc(estado.areaDe.get(q.id) || 'Sem equipe')}`,
-    aoTocar: async (q) => {
-      const atual = estado.areaDe.get(q.id) || null;
+    rotulo: (a) => `<b>${esc(nomeArea(a))}</b><br>${a.casas} casas no IBGE · ${visit.get(a.id) || 0} visitadas<br>${esc(estado.areaDe.get(a.id) || 'Sem equipe')}`,
+    aoTocar: async (a) => {
+      const atual = estado.areaDe.get(a.id) || null;
       const nova = atual === equipeSel ? null : equipeSel;
-      if (atual === nova) return;
+      // "Rua inteira": aplica em todos os trechos com o mesmo nome (só ruas da mesma localidade).
+      const alvo = ruaInteira && a.tipo === 'rua'
+        ? listaAreas.filter((x) => x.tipo === 'rua' && x.nome === a.nome && x.localidade === a.localidade)
+        : [a];
+      const mudar = alvo.filter((x) => (estado.areaDe.get(x.id) || null) !== nova).map((x) => x.id);
+      if (!mudar.length) return;
       try {
-        await atribuirQuarteiroes([q.id], nova, sessionStorage.getItem('mvb-painel-codigo') || '');
+        await atribuirQuarteiroes(mudar, nova, sessionStorage.getItem('mvb-painel-codigo') || '');
       } catch (e) {
         alert(`Não foi possível salvar: ${e.message}`);
       }
@@ -218,17 +224,19 @@ function areas() {
   });
 
   const linhas = [...equipes.equipes.map((e) => e.nome), null].map((nome) => {
-    const qs = quarteiroes.filter((q) => (estado.areaDe.get(q.id) || null) === nome);
-    const casas = qs.reduce((s, q) => s + q.casas, 0);
-    const v = qs.reduce((s, q) => s + (visit.get(q.id) || 0), 0);
+    const as = listaAreas.filter((a) => (estado.areaDe.get(a.id) || null) === nome);
+    const casas = as.reduce((s, a) => s + a.casas, 0);
+    const v = as.reduce((s, a) => s + (visit.get(a.id) || 0), 0);
     const cor = equipes.equipes.find((e) => e.nome === nome)?.cor || '#fff';
     return `<tr><td><span class="ponto" style="width:14px;height:14px;background:${esc(cor)}"></span> ${nome ? esc(nome) : '<i>Sem equipe</i>'}</td>
-      <td>${qs.filter((q) => !q.rural).length}</td><td>${qs.filter((q) => q.rural).length}</td><td>${casas}</td>
+      <td>${as.filter((a) => a.tipo === 'rua').length}</td><td>${as.filter((a) => a.tipo !== 'rua').length}</td><td>${casas}</td>
       <td>${nome ? `${v} <small>(${pct(v, casas)}%)</small>` : ''}</td></tr>`;
   });
-  $('#resumo-areas').innerHTML = `<thead><tr><th>Equipe</th><th>Quarteirões</th><th>Rural</th><th>Casas IBGE</th><th>Visitadas</th></tr></thead>
+  $('#resumo-areas').innerHTML = `<thead><tr><th>Equipe</th><th>Trechos de rua</th><th>Comunidades</th><th>Casas IBGE</th><th>Visitadas</th></tr></thead>
     <tbody>${linhas.join('')}</tbody>`;
 }
+
+$('#chk-rua-inteira').onchange = (ev) => { ruaInteira = ev.target.checked; };
 
 // ---------- Contatos (pin laranja) ----------
 

@@ -28,9 +28,10 @@ export async function carregarEquipes() {
   return r.json();
 }
 
-export async function carregarQuarteiroes() {
-  const r = await fetch(`${import.meta.env.BASE_URL}data/quarteiroes.json`);
-  return r.json();
+// Áreas de trabalho: trechos de rua (cidade) e comunidades (zona rural).
+export async function carregarAreas() {
+  const r = await fetch(`${import.meta.env.BASE_URL}data/areas.json`);
+  return (await r.json()).areas;
 }
 
 export async function carregarCasas() {
