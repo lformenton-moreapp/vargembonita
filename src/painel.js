@@ -20,7 +20,8 @@ let equipeSel = null;
 async function iniciar() {
   await prepararModo();
   [equipes, base, listaAreas] = await Promise.all([carregarEquipes(), carregarCasas(), carregarAreas()]);
-  if (sessionStorage.getItem(CHAVE) === '1') return abrirPainel();
+  // Só entra direto se a senha desta sessão estiver guardada (o banco confere a senha).
+  if (sessionStorage.getItem(CHAVE) === '1' && sessionStorage.getItem('mvb-painel-codigo')) return abrirPainel();
   $('#tela-entrada').hidden = false;
   $('#form-entrada').onsubmit = (ev) => {
     ev.preventDefault();
@@ -32,6 +33,12 @@ async function iniciar() {
     sessionStorage.setItem('mvb-painel-codigo', $('#inp-codigo').value.trim());
     abrirPainel();
   };
+}
+
+function sairPainel() {
+  sessionStorage.removeItem(CHAVE);
+  sessionStorage.removeItem('mvb-painel-codigo');
+  location.reload();
 }
 
 async function abrirPainel() {
@@ -219,6 +226,11 @@ function desenharDivisao() {
       try {
         await atribuirQuarteiroes(mudar, nova, sessionStorage.getItem('mvb-painel-codigo') || '');
       } catch (e) {
+        if (/c[oó]digo da coordena/i.test(e.message)) {
+          alert('A senha do painel precisa ser digitada de novo.');
+          sairPainel();
+          return;
+        }
         alert(`Não foi possível salvar: ${e.message}`);
       }
     },
