@@ -1,7 +1,7 @@
 -- Missão Vargem Bonita: tabelas para sincronizar as visitas entre celulares.
 -- Cole no Supabase: SQL Editor > New query > Run.
--- ANTES DE RODAR: troque 'TROQUE-ESTE-CODIGO' (no fim do arquivo) pelo código
--- da coordenação, o mesmo de public/equipes.json.
+-- O código da coordenação (no fim do arquivo) precisa ser o mesmo de
+-- public/equipes.json. Se trocar a senha do painel, troque nos dois lugares.
 
 create table if not exists public.visitas (
   id           uuid primary key,
@@ -104,6 +104,14 @@ $$;
 revoke all on function public.atribuir_quarteirao(text, text, text) from public;
 grant execute on function public.atribuir_quarteirao(text, text, text) to anon;
 
+-- Permissões da chave pública (o RLS acima decide quais linhas).
+grant usage on schema public to anon;
+grant select, insert on public.visitas to anon;
+grant select, insert on public.casas_novas to anon;
+grant insert on public.contatos to anon;
+grant select on public.atribuicoes to anon;
+revoke all on public.config from anon;
+
 -- Leitura dos contatos pelo painel: só com o código da coordenação.
 create or replace function public.contatos_coordenacao(codigo text)
 returns setof public.contatos
@@ -121,5 +129,5 @@ $$;
 revoke all on function public.contatos_coordenacao(text) from public;
 grant execute on function public.contatos_coordenacao(text) to anon;
 
-insert into public.config (chave, valor) values ('codigo_coordenacao', 'TROQUE-ESTE-CODIGO')
+insert into public.config (chave, valor) values ('codigo_coordenacao', 'painel2026')
 on conflict (chave) do update set valor = excluded.valor;

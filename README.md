@@ -81,19 +81,17 @@ Depois de editar, publique de novo. **Troque os códigos de exemplo antes da mis
 
 ## Configurar o Supabase (sincronizar entre celulares)
 
-1. Crie um projeto gratuito em [supabase.com](https://supabase.com).
-2. Abra `supabase/schema.sql`, troque `TROQUE-ESTE-CODIGO` (no fim do arquivo) pelo código da coordenação e, em **SQL Editor**, cole e rode o conteúdo. Ele cria as tabelas `visitas`, `casas_novas` e `contatos`. Visitas e pontos podem ser lidos e inseridos, mas não alterados ou apagados. Os contatos (nome e telefone do pin laranja) só podem ser inseridos pelas equipes; o painel os lê com o código da coordenação, e o celular apaga sua cópia assim que envia.
-3. Em **Project Settings › API**, copie a *Project URL* e a chave *anon public*.
-4. Crie `.env.local` a partir de `.env.example`:
+Caminho mais fácil, pela Vercel:
 
-   ```
-   VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-   VITE_SUPABASE_ANON_KEY=sua-chave-anon-publica
-   ```
+1. No projeto da Vercel, aba **Storage** › **Create Database** › **Supabase** › siga as telas (plano gratuito, região São Paulo). A Vercel cria o banco e cadastra sozinha as variáveis de ambiente (URL e chave pública).
+2. Clique em **Open in Supabase**. No Supabase, abra **SQL Editor**, cole todo o conteúdo de `supabase/schema.sql` e clique em **Run**.
+3. Na Vercel, aba **Deployments**, no último deploy: **⋯ › Redeploy**.
 
-5. Rode `npm run build` (ou `npm run dev`). O aviso "Modo demonstração" some e a barra passa a mostrar "✓ Tudo enviado" ou "⏳ N pendentes de envio".
+O app aceita as variáveis da integração (`NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL` e a chave anon ou publishable) ou as próprias (`VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`, ver `.env.example`). Só a chave **pública** vai para o app; a chave de serviço nunca é usada.
 
-Cada visita é gravada primeiro no celular (IndexedDB) e enviada quando há internet. O app tenta enviar a cada 30 segundos, ao voltar o sinal e ao reabrir. Tocar no indicador força o envio. Para corrigir uma visita registrada errado, apague a linha em **Table Editor** no Supabase.
+O que o `schema.sql` cria: tabelas `visitas`, `casas_novas`, `contatos`, `atribuicoes` e `config`. Pela chave pública, as equipes podem ler e inserir visitas e pontos, só inserir contatos e só ler a divisão das áreas; ninguém altera nem apaga. Os contatos e a divisão das áreas só são lidos/alterados pelo painel com o código da coordenação (funções `contatos_coordenacao` e `atribuir_quarteirao`). O código fica no fim do arquivo (`painel2026`) e precisa ser igual ao de `public/equipes.json`. Rodar o arquivo de novo é seguro.
+
+Cada visita é gravada primeiro no celular (IndexedDB) e enviada quando há internet: a cada 30 segundos, ao voltar o sinal e ao reabrir. Tocar no indicador força o envio. Para corrigir uma visita registrada errado, apague a linha em **Table Editor** no Supabase.
 
 ## Publicar na Vercel
 
