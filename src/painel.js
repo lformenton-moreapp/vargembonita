@@ -6,7 +6,7 @@ import { carregarCasas, carregarEquipes, META_BIBLIAS, MODO_DEMO, STATUS } from 
 import {
   gravarEmLote, iniciarSincronizacaoAutomatica, limparTudo, novoId, sincronizar, ultimaSync, ultimoErro,
 } from './store.js';
-import { criarMapa, dataHora, endereco, esc, estiloMarcador, linkRota, montarEstado, nomeEspecie } from './dados.js';
+import { criarMapa, dataHora, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie } from './dados.js';
 
 registerSW({ immediate: true });
 
@@ -98,12 +98,10 @@ function contadores() {
 }
 
 function desenharMapa() {
-  camada.clearLayers();
-  for (const c of estado.casas) {
-    L.circleMarker([c.lat, c.lng], estiloMarcador(c, false, mapa.getZoom()))
-      .bindPopup(() => popup(c))
-      .addTo(camada);
-  }
+  desenharGrupos(camada, estado.grupos, {
+    zoom: mapa.getZoom(),
+    popup: (g) => g.casas.map(popup).join('<hr>'),
+  });
 }
 
 function popup(c) {

@@ -37,7 +37,7 @@ export default defineConfig({
         runtimeCaching: [
           {
             // Guarda os pedaços do mapa já vistos para funcionar sem sinal.
-            urlPattern: /^https:\/\/tile\.openstreetmap\.org\//,
+            urlPattern: /^https:\/\/(tile\.openstreetmap\.org|server\.arcgisonline\.com)\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'mapa-osm',

@@ -7,7 +7,7 @@ import {
   contarPendentes, iniciarSincronizacaoAutomatica, salvarCasaNova, salvarVisita, sincronizar, ultimoErro,
 } from './store.js';
 import {
-  criarMapa, dataHora, endereco, esc, estiloMarcador, linkRota, montarEstado, nomeEspecie,
+  criarMapa, dataHora, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie,
 } from './dados.js';
 
 registerSW({ immediate: true });
@@ -91,13 +91,12 @@ async function atualizar() {
 }
 
 function desenhar() {
-  camada.clearLayers();
-  for (const c of estado.casas) {
-    if (!FILTROS[filtro].ok(c) && c.id !== selecionada) continue;
-    L.circleMarker([c.lat, c.lng], estiloMarcador(c, c.id === selecionada, mapa.getZoom()))
-      .on('click', () => abrirCasa(c.id))
-      .addTo(camada);
-  }
+  const visiveis = estado.grupos.filter((g) => g.casas.some((c) => FILTROS[filtro].ok(c) || c.id === selecionada));
+  desenharGrupos(camada, visiveis, {
+    zoom: mapa.getZoom(),
+    selecionada,
+    aoTocar: (g) => (g.casas.length === 1 ? abrirCasa(g.casas[0].id) : abrirGrupo(g)),
+  });
 }
 
 async function atualizarIndicador() {
@@ -148,14 +147,37 @@ function historicoHtml(c) {
     </li>`).join('') + '</ul>';
 }
 
+// Vários cadastros no mesmo ponto (ex.: casa da frente e dos fundos).
+function abrirGrupo(g) {
+  selecionada = g.casas[0].id;
+  desenhar();
+  abrirFolha(`
+    <button class="fechar" aria-label="Fechar">✕</button>
+    <h2>${g.casas.length} endereços neste ponto</h2>
+    <p class="meta">O IBGE cadastrou cada moradia separadamente. Toque na que vocês visitaram.</p>
+    <div class="lista-grupo">
+      ${g.casas.map((c) => `
+        <button class="item-grupo" data-id="${esc(c.id)}">
+          <span class="ponto" style="background:${c.ultima ? STATUS[c.ultima.status].cor : '#9ca3af'}"></span>
+          <span><strong>${esc(endereco(c))}</strong>
+          <small>${esc([nomeEspecie(base, c), c.estabelecimento, c.ultima ? STATUS[c.ultima.status].curto : 'Não visitada'].filter(Boolean).join(' · '))}</small></span>
+        </button>`).join('')}
+    </div>
+  `);
+  $('#folha-corpo .fechar').onclick = fecharFolha;
+  $('#folha-corpo').querySelectorAll('.item-grupo').forEach((b) => (b.onclick = () => abrirCasa(b.dataset.id)));
+}
+
 function abrirCasa(id) {
   const c = estado.porId.get(id);
   if (!c) return;
   selecionada = id;
   desenhar();
+  const grupo = estado.grupoDe.get(id);
 
   abrirFolha(`
     <button class="fechar" aria-label="Fechar">✕</button>
+    ${grupo && grupo.casas.length > 1 ? `<button class="voltar-grupo" type="button">← Outros ${grupo.casas.length - 1} endereço(s) neste ponto</button>` : ''}
     <h2>${esc(endereco(c))}</h2>
     <p class="meta">${esc([c.localidade, nomeEspecie(base, c), c.estabelecimento].filter(Boolean).join(' · '))}</p>
     <a class="btn btn-leve btn-bloco" href="${linkRota(c)}" target="_blank" rel="noopener">🧭 Ir até aqui (Google Maps)</a>
@@ -204,6 +226,8 @@ function abrirCasa(id) {
     s.textContent = f.status ? 'Salvar visita' : 'Escolha como foi a visita';
   };
   corpo.querySelector('.fechar').onclick = fecharFolha;
+  const voltar = corpo.querySelector('.voltar-grupo');
+  if (voltar) voltar.onclick = () => abrirGrupo(grupo);
   corpo.querySelectorAll('.btn-status').forEach((b) => (b.onclick = () => {
     f.status = b.dataset.status;
     f.biblia = f.status === 'verde';
