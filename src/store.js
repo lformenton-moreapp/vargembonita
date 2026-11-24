@@ -148,11 +148,13 @@ async function enviar(sb, store) {
 // Só a coordenação consegue lê-los no banco.
 async function enviarContatos(sb) {
   const pendentes = await todos('contatos');
-  if (!pendentes.length) return;
-  const { error } = await sb.from('contatos')
-    .upsert(pendentes.map(semCamposLocais), { onConflict: 'id', ignoreDuplicates: true });
-  if (error) throw error;
-  await tx('contatos', 'readwrite', (s) => pendentes.forEach((r) => s.delete(r.id)));
+  for (const r of pendentes) {
+    // Inserção simples (as equipes não têm permissão de leitura nos contatos).
+    // Se já tinha chegado antes (código 23505 = repetido), está tudo certo.
+    const { error } = await sb.from('contatos').insert(semCamposLocais(r));
+    if (error && error.code !== '23505') throw error;
+    await tx('contatos', 'readwrite', (s) => s.delete(r.id));
+  }
 }
 
 export async function buscarContatosCoordenacao(codigo) {

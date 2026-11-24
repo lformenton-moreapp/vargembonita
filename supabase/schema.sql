@@ -104,14 +104,16 @@ begin
   end if;
 end;
 $$;
-revoke all on function public.atribuir_quarteirao(text, text, text) from public;
+revoke all on function public.atribuir_quarteirao(text, text, text) from public, authenticated;
 grant execute on function public.atribuir_quarteirao(text, text, text) to anon;
 
 -- Permissões da chave pública (o RLS acima decide quais linhas).
+-- Primeiro tira tudo (o Supabase dá acesso amplo por padrão), depois dá só o necessário.
+revoke all on public.visitas, public.casas_novas, public.contatos, public.atribuicoes, public.config from anon, authenticated;
 grant usage on schema public to anon;
 grant select, insert on public.visitas to anon;
 grant select, insert on public.casas_novas to anon;
-grant insert on public.contatos to anon;
+grant insert on public.contatos to anon;   -- só inserir: nenhuma leitura
 grant select on public.atribuicoes to anon;
 revoke all on public.config from anon;
 
@@ -129,7 +131,7 @@ as $$
   )
   order by c.criado_em desc;
 $$;
-revoke all on function public.contatos_coordenacao(text) from public;
+revoke all on function public.contatos_coordenacao(text) from public, authenticated;
 grant execute on function public.contatos_coordenacao(text) to anon;
 
 insert into public.config (chave, valor) values ('codigo_coordenacao', 'painel2026')
