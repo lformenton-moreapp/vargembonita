@@ -98,7 +98,9 @@ function contadores() {
 }
 
 function desenharMapa() {
-  desenharGrupos(camada, estado.grupos, {
+  // Sobre o satélite, mostra só o que já foi visitado.
+  const visitados = estado.grupos.filter((g) => g.casas.some((c) => c.ultima));
+  desenharGrupos(camada, visitados, {
     zoom: mapa.getZoom(),
     popup: (g) => g.casas.map(popup).join('<hr>'),
   });

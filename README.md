@@ -2,11 +2,11 @@
 
 Web app (PWA, para celular) que mapeia a entrega de bíblias casa a casa em Vargem Bonita (MG), como uma gincana entre equipes.
 
-- **App das equipes** (`/`): mapa com todas as casas do município, registro da visita em poucos toques, "Ir até aqui" pelo Google Maps, "Adicionar casa aqui" pelo GPS e funcionamento sem sinal.
+- **App das equipes** (`/`): mapa de satélite; a equipe **toca no telhado** e o app mostra os endereços do IBGE mais próximos para confirmar qual é (ou registra só pelo local). Só as casas já visitadas aparecem marcadas. Também tem "Ir até aqui" pelo Google Maps, "Casa onde estou (GPS)" e funcionamento sem sinal.
 - **Painel da coordenação** (`/painel/`): contadores, mapa geral, placar por equipe, lista de casas amarelas para a rodada de retorno, resumo por localidade e exportação em CSV.
 
-Cores: cinza = não visitada · verde = recebidos, bíblia entregue · amarelo = ninguém em casa / voltar depois · vermelho = não quiseram receber.
-No mapa, a borda branca marca um domicílio, a preta outros pontos (comércio, fazenda, igreja, escola…) e a azul uma casa adicionada pelo GPS.
+Cores: verde = recebidos, bíblia entregue · amarelo = ninguém em casa / voltar depois · vermelho = não quiseram receber.
+O botão "Mostrando: …" alterna entre só as visitadas e todos os endereços do IBGE (cinza = não visitada; anel = comércio, fazenda, igreja, escola…). Endereços no mesmo terreno aparecem como um ponto com número. O fundo começa em satélite (imagens Esri); o botão "Mapa" troca para o mapa de ruas.
 
 ## Dados das casas
 

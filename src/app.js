@@ -15,12 +15,11 @@ registerSW({ immediate: true });
 const $ = (s) => document.querySelector(s);
 const CHAVE_EQUIPE = 'mvb-equipe';
 const FILTROS = [
-  { nome: 'todos os pontos', ok: () => true },
-  { nome: 'só casas', ok: (c) => c.especie <= 2 },
-  { nome: 'a visitar (cinza e amarelo)', ok: (c) => !c.ultima || c.ultima.status === 'amarelo' },
+  { nome: 'só visitadas', ok: (c) => !!c.ultima },
+  { nome: 'todos os endereços do IBGE', ok: () => true },
 ];
 
-let base, estado, mapa, camada, equipe, marcadorEu;
+let base, estado, mapa, camada, camadaToque, equipe, marcadorEu;
 let selecionada = null;
 let filtro = 0;
 
@@ -58,7 +57,9 @@ async function abrirMapa() {
   if (!mapa) {
     mapa = criarMapa('mapa');
     camada = L.layerGroup().addTo(mapa);
+    camadaToque = L.layerGroup().addTo(mapa);
     mapa.on('zoomend', desenhar);
+    mapa.on('click', (ev) => tocarNoMapa(ev.latlng));
     window.addEventListener('dados-mudaram', atualizar);
     window.addEventListener('online', atualizarIndicador);
     window.addEventListener('offline', atualizarIndicador);
@@ -128,6 +129,7 @@ function abrirFolha(html) {
 
 function fecharFolha() {
   $('#folha').hidden = true;
+  camadaToque.clearLayers();
   selecionada = null;
   desenhar();
 }
@@ -172,6 +174,7 @@ function abrirCasa(id) {
   const c = estado.porId.get(id);
   if (!c) return;
   selecionada = id;
+  camadaToque.clearLayers();
   desenhar();
   const grupo = estado.grupoDe.get(id);
 
@@ -252,6 +255,51 @@ function abrirCasa(id) {
     avisar(MODO_DEMO || !navigator.onLine ? 'Visita salva no aparelho ✓' : 'Visita salva ✓');
   };
   render();
+}
+
+// ---------- Toque no telhado ----------
+
+const RAIO_BUSCA_M = 40;
+const distM = (a, b) => Math.hypot((a.lat - b.lat) * 111000, (a.lng - b.lng) * 104000);
+
+function tocarNoMapa(ll) {
+  camadaToque.clearLayers();
+  L.circleMarker(ll, { radius: 12, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 0.5, interactive: false })
+    .addTo(camadaToque);
+  const perto = estado.casas
+    .map((c) => ({ c, d: distM(c, { lat: ll.lat, lng: ll.lng }) }))
+    .filter((x) => x.d <= RAIO_BUSCA_M)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 8);
+
+  abrirFolha(`
+    <button class="fechar" aria-label="Fechar">✕</button>
+    <h2>Qual é esta casa?</h2>
+    <p class="meta">${perto.length ? 'Endereços do IBGE mais perto de onde você tocou:' : 'Nenhum endereço do IBGE perto daqui.'}</p>
+    <div class="lista-grupo">
+      ${perto.map(({ c, d }) => `
+        <button class="item-grupo" data-id="${esc(c.id)}">
+          <span class="ponto" style="background:${c.ultima ? STATUS[c.ultima.status].cor : '#9ca3af'}"></span>
+          <span><strong>${esc(endereco(c))}</strong>
+          <small>${esc([`a ${Math.round(d)} m`, nomeEspecie(base, c), c.estabelecimento, c.ultima ? STATUS[c.ultima.status].curto : 'Não visitada'].filter(Boolean).join(' · '))}</small></span>
+        </button>`).join('')}
+      <button id="btn-aqui" class="btn btn-leve btn-grande">Não está na lista – registrar neste local</button>
+    </div>
+  `);
+  $('#folha-corpo .fechar').onclick = fecharFolha;
+  $('#folha-corpo').querySelectorAll('.item-grupo').forEach((b) => (b.onclick = () => abrirCasa(b.dataset.id)));
+  $('#btn-aqui').onclick = async () => {
+    const prox = maisProxima([ll.lat, ll.lng]);
+    const nova = await salvarCasaNova({
+      lat: +ll.lat.toFixed(6),
+      lng: +ll.lng.toFixed(6),
+      descricao: 'Casa marcada no mapa',
+      localidade: prox?.localidade || '',
+      equipe,
+    });
+    estado = await montarEstado(base);
+    abrirCasa(nova.id);
+  };
 }
 
 // ---------- GPS ----------

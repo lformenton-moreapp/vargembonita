@@ -108,7 +108,7 @@ export function desenharGrupos(camada, grupos, { zoom, selecionada = null, aoToc
   camada.clearLayers();
   for (const g of grupos) {
     const sel = selecionada && g.casas.some((c) => c.id === selecionada);
-    const m = L.circleMarker([g.lat, g.lng], estiloGrupo(g, sel, zoom)).addTo(camada);
+    const m = L.circleMarker([g.lat, g.lng], { ...estiloGrupo(g, sel, zoom), bubblingMouseEvents: false }).addTo(camada);
     if (aoTocar) m.on('click', () => aoTocar(g));
     if (popup) m.bindPopup(() => popup(g), { maxHeight: 300 });
     if (g.casas.length > 1 && zoom >= 16) {
@@ -138,7 +138,7 @@ export function criarMapa(elemento) {
     preferCanvas: true,
     zoomControl: false,
     renderer: L.canvas({ tolerance: 10 }),
-  }).setView(CENTRO_MAPA, 15);
+  }).setView(CENTRO_MAPA, 17);
   L.control.zoom({ position: 'bottomleft' }).addTo(mapa);
   const ruas = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -153,8 +153,8 @@ export function criarMapa(elemento) {
     L.tileLayer(`${esri}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, maxNativeZoom: 18 }),
     L.tileLayer(`${esri}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, maxNativeZoom: 18 }),
   ]);
-  let modo = 'ruas';
-  try { modo = localStorage.getItem('mvb-fundo') || 'ruas'; } catch { /* sem armazenamento */ }
+  let modo = 'satelite';
+  try { modo = localStorage.getItem('mvb-fundo-v2') || 'satelite'; } catch { /* sem armazenamento */ }
   const Botao = L.Control.extend({
     options: { position: 'bottomleft' },
     onAdd() {
@@ -168,7 +168,7 @@ export function criarMapa(elemento) {
       L.DomEvent.disableClickPropagation(b);
       b.onclick = () => {
         modo = modo === 'satelite' ? 'ruas' : 'satelite';
-        try { localStorage.setItem('mvb-fundo', modo); } catch { /* ok */ }
+        try { localStorage.setItem('mvb-fundo-v2', modo); } catch { /* ok */ }
         aplicar();
       };
       aplicar();
