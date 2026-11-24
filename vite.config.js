@@ -6,9 +6,18 @@ export default defineConfig(({ mode }) => {
   // Aceita tanto as variáveis VITE_* quanto as criadas pela integração
   // Supabase da Vercel. Só a URL e a chave PÚBLICA (anon/publishable) vão para o app.
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
-  const url = env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL || '';
-  const chave = env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || '';
+  // A integração pode criar nomes com prefixos variados (NEXT_PUBLIC_, STORAGE_...).
+  // Procura qualquer variável terminada em SUPABASE_URL e na chave pública;
+  // nunca usa a chave secreta (service role / secret).
+  const achar = (...finais) => {
+    for (const fim of finais) {
+      const nome = Object.keys(env).sort().find((k) => k.endsWith(fim) && env[k] && !/SERVICE|SECRET|JWT/.test(k));
+      if (nome) return env[nome];
+    }
+    return '';
+  };
+  const url = env.VITE_SUPABASE_URL || achar('SUPABASE_URL');
+  const chave = env.VITE_SUPABASE_ANON_KEY || achar('SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_ANON_KEY');
   return {
   define: {
     'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(url),
