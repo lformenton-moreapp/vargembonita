@@ -53,7 +53,7 @@ async function abrirPainel() {
   mapaAreas.fitBounds(cidade, { padding: [10, 10] });
 }
 
-$('#btn-sync').onclick = () => (MODO_DEMO ? atualizar() : sincronizar());
+$('#btn-sync').onclick = () => (MODO_DEMO ? atualizar() : sincronizar(true));
 
 async function atualizar() {
   estado = await montarEstado(base);

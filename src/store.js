@@ -170,14 +170,25 @@ async function baixarAtribuicoes(sb) {
   await tx('atribuicoes', 'readwrite', (s) => { s.clear(); data.forEach((r) => s.put(r)); });
 }
 
+// Para economizar internet (e o limite gratuito do Supabase), a primeira
+// sincronização ao abrir o app baixa tudo; as seguintes só o que chegou
+// depois (com 2 minutos de folga, para não perder nada que chegou junto).
+const marca = { casasNovas: null, visitas: null };
+const FOLGA_MS = 2 * 60 * 1000;
+
 async function baixar(sb, store) {
   const linhas = [];
+  const desde = marca[store] ? new Date(Date.parse(marca[store]) - FOLGA_MS).toISOString() : null;
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await sb.from(TABELAS[store]).select('*').order('id').range(de, de + 999);
+    let q = sb.from(TABELAS[store]).select('*');
+    if (desde) q = q.gt('recebido_em', desde);
+    const { data, error } = await q.order('recebido_em').order('id').range(de, de + 999);
     if (error) throw error;
     linhas.push(...data);
     if (data.length < 1000) break;
   }
+  for (const r of linhas) if (!marca[store] || r.recebido_em > marca[store]) marca[store] = r.recebido_em;
+  if (!linhas.length) return;
   const locais = new Map((await todos(store)).map((x) => [x.id, x]));
   const novos = linhas.filter((r) => !locais.get(r.id)?.pendente).map((r) => ({ ...r, pendente: 0 }));
   await tx(store, 'readwrite', (s) => novos.forEach((r) => s.put(r)));
@@ -187,7 +198,9 @@ let sincronizando = null;
 export let ultimoErro = null;
 export let ultimaSync = null;
 
-export function sincronizar() {
+let ultimaAtribuicao = 0;
+
+export function sincronizar(forcar = false) {
   if (MODO_DEMO || !navigator.onLine) return Promise.resolve(false);
   if (sincronizando) return sincronizando;
   sincronizando = (async () => {
@@ -198,7 +211,11 @@ export function sincronizar() {
       await enviarContatos(sb);
       await baixar(sb, 'casasNovas');
       await baixar(sb, 'visitas');
-      await baixarAtribuicoes(sb);
+      // A divisão das áreas muda pouco: baixa ao abrir, a cada 5 minutos ou quando pedido.
+      if (forcar || Date.now() - ultimaAtribuicao > 5 * 60 * 1000) {
+        await baixarAtribuicoes(sb);
+        ultimaAtribuicao = Date.now();
+      }
       ultimoErro = null;
       ultimaSync = new Date();
       return true;

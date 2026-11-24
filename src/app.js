@@ -118,7 +118,7 @@ async function atualizarIndicador() {
       (!navigator.onLine ? ' (sem sinal)' : ultimoErro ? ' (erro, tentando de novo)' : '');
   }
 }
-$('#indicador-sync').onclick = () => sincronizar();
+$('#indicador-sync').onclick = () => sincronizar(true);
 
 function minhasAreas() {
   return areas.filter((a) => estado.areaDe.get(a.id) === equipe);

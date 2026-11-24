@@ -16,6 +16,7 @@ create table if not exists public.visitas (
   recebido_em  timestamptz not null default now()
 );
 create index if not exists visitas_casa_idx on public.visitas (casa_id);
+create index if not exists visitas_recebido_idx on public.visitas (recebido_em);
 
 -- Pontos marcados pelas equipes (toque no telhado ou GPS).
 create table if not exists public.casas_novas (
@@ -30,6 +31,8 @@ create table if not exists public.casas_novas (
   criado_em    timestamptz not null,
   recebido_em  timestamptz not null default now()
 );
+
+create index if not exists casas_novas_recebido_idx on public.casas_novas (recebido_em);
 
 -- Nome e telefone de quem quer continuidade (pin laranja). Dado pessoal:
 -- as equipes só conseguem INSERIR; a leitura é só pela função abaixo,
