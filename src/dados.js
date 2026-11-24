@@ -1,14 +1,14 @@
 // Funções compartilhadas entre o app do missionário e o painel.
 import L from 'leaflet';
 import { CENTRO_MAPA, COR_NAO_VISITADA, STATUS } from './config.js';
-import { listarCasasNovas, listarVisitas } from './store.js';
+import { listarAtribuicoes, listarCasasNovas, listarVisitas } from './store.js';
 
 export const ESPECIE_CASA_NOVA = 0;
 
 // Junta os pontos do CNEFE com as casas adicionadas pelo GPS e calcula o
 // status atual (última visita) de cada ponto.
 export async function montarEstado(base) {
-  const [visitas, novas] = await Promise.all([listarVisitas(), listarCasasNovas()]);
+  const [visitas, novas, atribuicoes] = await Promise.all([listarVisitas(), listarCasasNovas(), listarAtribuicoes()]);
   const casas = base.casas.concat(novas.map((n) => ({
     id: n.id,
     logradouro: n.descricao || 'Ponto marcado no mapa',
@@ -33,7 +33,11 @@ export async function montarEstado(base) {
   const grupos = agrupar(casas);
   const grupoDe = new Map();
   for (const g of grupos) for (const c of g.casas) grupoDe.set(c.id, g);
-  return { casas, visitas, grupos, grupoDe, porId: new Map(casas.map((c) => [c.id, c])) };
+  const porId = new Map(casas.map((c) => [c.id, c]));
+  // Área (quarteirão/comunidade) de cada ponto; pontos marcados herdam a do endereço mais próximo.
+  for (const c of casas) c.area = c.q || porId.get(c.nova?.cnefe_id)?.q || null;
+  const areaDe = new Map(atribuicoes.map((a) => [a.quarteirao_id, a.equipe]));
+  return { casas, visitas, grupos, grupoDe, porId, areaDe };
 }
 
 // O IBGE cadastra cada moradia separadamente, mesmo no mesmo terreno
@@ -177,6 +181,42 @@ export function raioPorZoom(zoom) {
   if (zoom === 16) return 6;
   if (zoom === 17) return 7;
   return 9;
+}
+
+// ---------- Áreas (quarteirões / comunidades) ----------
+
+const tamanho = (q) => {
+  let la0 = 90, la1 = -90, ln0 = 180, ln1 = -180;
+  for (const [la, ln] of q.contorno) { la0 = Math.min(la0, la); la1 = Math.max(la1, la); ln0 = Math.min(ln0, ln); ln1 = Math.max(ln1, ln); }
+  return (la1 - la0) * (ln1 - ln0);
+};
+
+// Desenha as áreas. Maiores por baixo, para as pequenas continuarem clicáveis.
+// modo 'painel': todas, preenchidas na cor da equipe. modo 'equipe': destaca as da própria equipe.
+export function desenharAreas(camada, quarteiroes, areaDe, equipes, { modo, minhaEquipe, aoTocar, rotulo }) {
+  camada.clearLayers();
+  const cor = (nome) => equipes.find((e) => e.nome === nome)?.cor || '#9ca3af';
+  const camadas = new Map();
+  for (const q of [...quarteiroes].sort((a, b) => tamanho(b) - tamanho(a))) {
+    const dono = areaDe.get(q.id);
+    let estilo;
+    if (modo === 'painel') {
+      estilo = dono
+        ? { color: cor(dono), weight: 2.5, fillColor: cor(dono), fillOpacity: 0.4 }
+        : { color: '#ffffff', weight: 1.5, dashArray: '4 4', fillColor: '#ffffff', fillOpacity: 0.08 };
+    } else if (dono === minhaEquipe) {
+      estilo = { color: cor(dono), weight: 4, fillColor: cor(dono), fillOpacity: 0.12, interactive: false };
+    } else if (dono) {
+      estilo = { color: cor(dono), weight: 1.5, dashArray: '6 6', opacity: 0.7, fill: false, interactive: false };
+    } else continue;
+    const pol = L.polygon(q.contorno, estilo).addTo(camada);
+    if (modo === 'painel') {
+      if (aoTocar) pol.on('click', () => aoTocar(q));
+      if (rotulo) pol.bindTooltip(() => rotulo(q), { sticky: true });
+    }
+    camadas.set(q.id, pol);
+  }
+  return camadas;
 }
 
 export function linkRota(c) {

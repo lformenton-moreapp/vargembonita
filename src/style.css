@@ -194,3 +194,19 @@ body.painel { height: auto; }
 .selo-laranja { background: #fed7aa; color: #7c2d12; }
 .tabela-contatos td, .tabela-contatos th { text-align: left !important; }
 .cor-equipe { display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #fff; margin-right: .45rem; vertical-align: -3px; }
+
+/* Divisão das áreas (painel) */
+.areas-bloco { margin: 12px 16px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 .8rem; }
+.chip {
+  display: inline-flex; align-items: center; gap: .4rem; min-height: 40px; padding: .3rem .8rem; border-radius: 999px;
+  border: 2px solid var(--borda); background: #fff; font: inherit; font-weight: 700; cursor: pointer; color: var(--texto);
+}
+.chip .ponto { width: 16px; height: 16px; }
+.chip.ativo { border-color: var(--texto); background: #111827; color: #fff; }
+.grade-areas { display: grid; gap: 12px; }
+@media (min-width: 900px) { .grade-areas { grid-template-columns: 3fr 2fr; } }
+#mapa-areas { height: 520px; }
+.areas-bloco .nota { margin: 0; }
+#resumo-areas td:first-child, #resumo-areas th:first-child { text-align: left; }
+#resumo-areas td, #resumo-areas th { text-align: right; }

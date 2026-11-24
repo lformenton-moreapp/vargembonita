@@ -13,7 +13,7 @@ let dbPromise;
 function db() {
   if (!dbPromise) {
     dbPromise = new Promise((ok, erro) => {
-      const req = indexedDB.open(NOME_DB, 2);
+      const req = indexedDB.open(NOME_DB, 3);
       req.onupgradeneeded = (ev) => {
         const d = req.result;
         if (ev.oldVersion < 1) {
@@ -21,6 +21,7 @@ function db() {
           d.createObjectStore('casasNovas', { keyPath: 'id' });
         }
         if (ev.oldVersion < 2) d.createObjectStore('contatos', { keyPath: 'id' });
+        if (ev.oldVersion < 3) d.createObjectStore('atribuicoes', { keyPath: 'quarteirao_id' });
       };
       req.onsuccess = () => ok(req.result);
       req.onerror = () => erro(req.error);
@@ -45,6 +46,22 @@ const todos = (store) => tx(store, 'readonly', (s) => s.getAll());
 export const listarVisitas = () => todos('visitas');
 export const listarCasasNovas = () => todos('casasNovas');
 export const listarContatosLocais = () => todos('contatos');
+export const listarAtribuicoes = () => todos('atribuicoes');
+
+// Coordenação: entrega um quarteirão a uma equipe (ou tira, com equipe = null).
+export async function atribuirQuarteiroes(ids, equipe, codigo) {
+  if (!MODO_DEMO) {
+    const sb = await cliente();
+    for (const id of ids) {
+      const { error } = await sb.rpc('atribuir_quarteirao', { codigo, quarteirao: id, equipe });
+      if (error) throw error;
+    }
+  }
+  await tx('atribuicoes', 'readwrite', (s) => ids.forEach((id) => (equipe
+    ? s.put({ quarteirao_id: id, equipe, atualizado_em: new Date().toISOString() })
+    : s.delete(id))));
+  avisarMudanca();
+}
 
 function avisarMudanca() {
   window.dispatchEvent(new CustomEvent('dados-mudaram'));
@@ -93,6 +110,7 @@ export async function limparTudo() {
   await tx('visitas', 'readwrite', (s) => s.clear());
   await tx('casasNovas', 'readwrite', (s) => s.clear());
   await tx('contatos', 'readwrite', (s) => s.clear());
+  await tx('atribuicoes', 'readwrite', (s) => s.clear());
   avisarMudanca();
 }
 
@@ -145,6 +163,13 @@ export async function buscarContatosCoordenacao(codigo) {
   return data;
 }
 
+// Divisão das áreas: a versão do banco substitui a do celular.
+async function baixarAtribuicoes(sb) {
+  const { data, error } = await sb.from('atribuicoes').select('*');
+  if (error) throw error;
+  await tx('atribuicoes', 'readwrite', (s) => { s.clear(); data.forEach((r) => s.put(r)); });
+}
+
 async function baixar(sb, store) {
   const linhas = [];
   for (let de = 0; ; de += 1000) {
@@ -173,6 +198,7 @@ export function sincronizar() {
       await enviarContatos(sb);
       await baixar(sb, 'casasNovas');
       await baixar(sb, 'visitas');
+      await baixarAtribuicoes(sb);
       ultimoErro = null;
       ultimaSync = new Date();
       return true;

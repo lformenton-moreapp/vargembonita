@@ -2,12 +2,12 @@ import 'leaflet/dist/leaflet.css';
 import './style.css';
 import L from 'leaflet';
 import { registerSW } from 'virtual:pwa-register';
-import { carregarCasas, carregarEquipes, MODO_DEMO, STATUS } from './config.js';
+import { carregarCasas, carregarEquipes, carregarQuarteiroes, MODO_DEMO, STATUS } from './config.js';
 import {
   contarPendentes, iniciarSincronizacaoAutomatica, salvarCasaNova, salvarContato, salvarVisita, sincronizar, ultimoErro,
 } from './store.js';
 import {
-  criarMapa, dataHora, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie,
+  criarMapa, dataHora, desenharAreas, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie,
 } from './dados.js';
 
 registerSW({ immediate: true });
@@ -19,13 +19,16 @@ const FILTROS = [
   { nome: 'todos os endereços do IBGE', ok: () => true },
 ];
 
-let base, estado, mapa, camada, camadaToque, equipe, corEquipe, marcadorEu;
+let base, estado, mapa, camada, camadaToque, camadaAreas, equipe, corEquipe, marcadorEu, quarteiroes, listaEquipes;
+let jaEnquadrou = false;
 let selecionada = null;
 let filtro = 0;
 
 async function iniciar() {
-  const [equipes, casas] = await Promise.all([carregarEquipes(), carregarCasas()]);
+  const [equipes, casas, qs] = await Promise.all([carregarEquipes(), carregarCasas(), carregarQuarteiroes()]);
   base = casas;
+  quarteiroes = qs;
+  listaEquipes = equipes.equipes;
   const salva = localStorage.getItem(CHAVE_EQUIPE);
   const eq = equipes.equipes.find((e) => e.nome === salva);
   equipe = eq?.nome;
@@ -59,6 +62,7 @@ async function abrirMapa() {
   $('#nome-equipe').innerHTML = `${corEquipe ? `<span class="cor-equipe" style="background:${esc(corEquipe)}"></span>` : ''}Equipe ${esc(equipe)}`;
   if (!mapa) {
     mapa = criarMapa('mapa');
+    camadaAreas = L.layerGroup().addTo(mapa);
     camada = L.layerGroup().addTo(mapa);
     camadaToque = L.layerGroup().addTo(mapa);
     mapa.on('zoomend', desenhar);
@@ -86,6 +90,9 @@ $('#btn-filtro').onclick = () => {
 
 async function atualizar() {
   estado = await montarEstado(base);
+  desenharAreas(camadaAreas, quarteiroes, estado.areaDe, listaEquipes, { modo: 'equipe', minhaEquipe: equipe });
+  // Ao abrir, leva o mapa direto para a área da equipe (se a coordenação já definiu).
+  if (!jaEnquadrou && minhasAreas().length) { jaEnquadrou = true; irParaMinhaArea(); }
   desenhar();
   atualizarIndicador();
   // Se a folha de uma casa está aberta, atualiza o histórico dela.
@@ -121,6 +128,20 @@ async function atualizarIndicador() {
   }
 }
 $('#indicador-sync').onclick = () => sincronizar();
+
+function minhasAreas() {
+  return quarteiroes.filter((q) => estado.areaDe.get(q.id) === equipe);
+}
+
+function irParaMinhaArea() {
+  const qs = minhasAreas();
+  if (!qs.length) {
+    avisar('A coordenação ainda não definiu a área da sua equipe.');
+    return;
+  }
+  mapa.fitBounds(L.latLngBounds(qs.flatMap((q) => q.contorno)), { padding: [30, 30], maxZoom: 18 });
+}
+$('#btn-minha-area').onclick = irParaMinhaArea;
 
 // ---------- Folha (painel inferior) ----------
 

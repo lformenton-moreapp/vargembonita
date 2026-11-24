@@ -28,6 +28,11 @@ export async function carregarEquipes() {
   return r.json();
 }
 
+export async function carregarQuarteiroes() {
+  const r = await fetch(`${import.meta.env.BASE_URL}data/quarteiroes.json`);
+  return r.json();
+}
+
 export async function carregarCasas() {
   const r = await fetch(`${import.meta.env.BASE_URL}data/casas.json`);
   return r.json();

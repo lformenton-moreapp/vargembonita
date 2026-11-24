@@ -2,21 +2,22 @@ import 'leaflet/dist/leaflet.css';
 import './style.css';
 import L from 'leaflet';
 import { registerSW } from 'virtual:pwa-register';
-import { carregarCasas, carregarEquipes, META_BIBLIAS, MODO_DEMO, STATUS } from './config.js';
+import { carregarCasas, carregarEquipes, carregarQuarteiroes, META_BIBLIAS, MODO_DEMO, STATUS } from './config.js';
 import {
-  buscarContatosCoordenacao, gravarEmLote, iniciarSincronizacaoAutomatica, limparTudo, novoId, sincronizar, ultimaSync, ultimoErro,
+  atribuirQuarteiroes, buscarContatosCoordenacao, gravarEmLote, iniciarSincronizacaoAutomatica, limparTudo, novoId, sincronizar, ultimaSync, ultimoErro,
 } from './store.js';
-import { criarMapa, dataHora, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie } from './dados.js';
+import { criarMapa, dataHora, desenharAreas, endereco, esc, desenharGrupos, linkRota, montarEstado, nomeEspecie } from './dados.js';
 
 registerSW({ immediate: true });
 
 const $ = (s) => document.querySelector(s);
 const CHAVE = 'mvb-painel';
 const CASAS_OCUPADAS_CENSO = 876;
-let base, equipes, estado, mapa, camada;
+let base, equipes, estado, mapa, camada, quarteiroes, mapaAreas, camadaAreas;
+let equipeSel = null;
 
 async function iniciar() {
-  [equipes, base] = await Promise.all([carregarEquipes(), carregarCasas()]);
+  [equipes, base, quarteiroes] = await Promise.all([carregarEquipes(), carregarCasas(), carregarQuarteiroes()]);
   if (sessionStorage.getItem(CHAVE) === '1') return abrirPainel();
   $('#tela-entrada').hidden = false;
   $('#form-entrada').onsubmit = (ev) => {
@@ -35,6 +36,10 @@ async function abrirPainel() {
   $('#tela-entrada').hidden = true;
   $('#tela-painel').hidden = false;
   $('#demo-box').hidden = !MODO_DEMO;
+  mapaAreas = criarMapa('mapa-areas');
+  camadaAreas = L.layerGroup().addTo(mapaAreas);
+  equipeSel = equipes.equipes[0]?.nome || null;
+  chips();
   mapa = criarMapa('mapa');
   camada = L.layerGroup().addTo(mapa);
   mapa.on('zoomend', desenharMapa);
@@ -43,6 +48,8 @@ async function abrirPainel() {
   await atualizar();
   const todos = L.latLngBounds(base.casas.map((c) => [c.lat, c.lng]));
   mapa.fitBounds(todos, { padding: [10, 10] });
+  const cidade = L.latLngBounds(quarteiroes.filter((q) => !q.rural && q.localidade === 'Centro').flatMap((q) => q.contorno));
+  mapaAreas.fitBounds(cidade, { padding: [10, 10] });
 }
 
 $('#btn-sync').onclick = () => (MODO_DEMO ? atualizar() : sincronizar());
@@ -51,6 +58,7 @@ async function atualizar() {
   estado = await montarEstado(base);
   indicador();
   contadores();
+  areas();
   desenharMapa();
   placar();
   amarelas();
@@ -167,6 +175,59 @@ function localidades() {
     <tbody>${linhas.map(([k, x]) => `
       <tr><td>${esc(k)}</td><td>${x.ibge}</td><td>${x.visit}</td><td>${x.biblias}</td></tr>`).join('')}
     </tbody>`;
+}
+
+// ---------- Divisão das áreas ----------
+
+function chips() {
+  const opcoes = [...equipes.equipes.map((e) => ({ nome: e.nome, cor: e.cor })), { nome: null, cor: '#ffffff' }];
+  $('#chips-equipes').innerHTML = opcoes.map((e) => `
+    <button class="chip ${e.nome === equipeSel ? 'ativo' : ''}" data-nome="${esc(e.nome ?? '')}">
+      <span class="ponto" style="background:${esc(e.cor)}"></span>${e.nome ? esc(e.nome) : 'Tirar equipe'}
+    </button>`).join('');
+  $('#chips-equipes').querySelectorAll('.chip').forEach((b) => (b.onclick = () => {
+    equipeSel = b.dataset.nome || null;
+    chips();
+  }));
+}
+
+function visitadosPorArea() {
+  const m = new Map();
+  for (const c of estado.casas) {
+    if (!c.ultima || !c.area) continue;
+    m.set(c.area, (m.get(c.area) || 0) + 1);
+  }
+  return m;
+}
+
+function areas() {
+  const visit = visitadosPorArea();
+  desenharAreas(camadaAreas, quarteiroes, estado.areaDe, equipes.equipes, {
+    modo: 'painel',
+    rotulo: (q) => `<b>${esc(q.nome)}</b>${q.rural ? ' (zona rural)' : ''}<br>${q.casas} casas no IBGE · ${visit.get(q.id) || 0} visitadas<br>${esc(estado.areaDe.get(q.id) || 'Sem equipe')}`,
+    aoTocar: async (q) => {
+      const atual = estado.areaDe.get(q.id) || null;
+      const nova = atual === equipeSel ? null : equipeSel;
+      if (atual === nova) return;
+      try {
+        await atribuirQuarteiroes([q.id], nova, sessionStorage.getItem('mvb-painel-codigo') || '');
+      } catch (e) {
+        alert(`Não foi possível salvar: ${e.message}`);
+      }
+    },
+  });
+
+  const linhas = [...equipes.equipes.map((e) => e.nome), null].map((nome) => {
+    const qs = quarteiroes.filter((q) => (estado.areaDe.get(q.id) || null) === nome);
+    const casas = qs.reduce((s, q) => s + q.casas, 0);
+    const v = qs.reduce((s, q) => s + (visit.get(q.id) || 0), 0);
+    const cor = equipes.equipes.find((e) => e.nome === nome)?.cor || '#fff';
+    return `<tr><td><span class="ponto" style="width:14px;height:14px;background:${esc(cor)}"></span> ${nome ? esc(nome) : '<i>Sem equipe</i>'}</td>
+      <td>${qs.filter((q) => !q.rural).length}</td><td>${qs.filter((q) => q.rural).length}</td><td>${casas}</td>
+      <td>${nome ? `${v} <small>(${pct(v, casas)}%)</small>` : ''}</td></tr>`;
+  });
+  $('#resumo-areas').innerHTML = `<thead><tr><th>Equipe</th><th>Quarteirões</th><th>Rural</th><th>Casas IBGE</th><th>Visitadas</th></tr></thead>
+    <tbody>${linhas.join('')}</tbody>`;
 }
 
 // ---------- Contatos (pin laranja) ----------

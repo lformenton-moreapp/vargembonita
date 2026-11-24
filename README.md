@@ -8,6 +8,12 @@ Web app (PWA, para celular) que mapeia a entrega de bíblias casa a casa em Varg
 Pins: 🟢 verde = aceitou a bíblia · 🟠 laranja = querem dar continuidade (pede nome e telefone, com autorização) · 🟡 amarelo = tentar novamente · 🔵 azul = comércio/escola (observação) · ⚫ cinza = abandonada/em construção · 🔴 vermelho = não quiseram receber.
 O botão "Mostrando: …" alterna entre só as visitadas e todos os endereços do IBGE (cinza = não visitada; anel = comércio, fazenda, igreja, escola…). Endereços no mesmo terreno aparecem como um ponto com número. O fundo começa em satélite (imagens Esri); o botão "Mapa" troca para o mapa de ruas.
 
+## Divisão das áreas entre as equipes
+
+No painel, em **Divisão das áreas**: escolha a equipe e toque nos quarteirões (cidade) ou comunidades (zona rural) para entregá-los a ela; tocar de novo tira. A equipe vê sua área contornada na cor dela ao abrir o app e tem o botão **🎯 Minha área**. As outras áreas aparecem tracejadas na cor de cada equipe. Ninguém fica bloqueado de registrar fora da própria área.
+
+Os contornos são gerados por `npm run dados` (`public/data/quarteiroes.json`) a partir das quadras do IBGE: 66 quarteirões na cidade e 41 comunidades rurais (na zona rural o IBGE usa uma "quadra 0" para o setor inteiro, então ali a área é a localidade). O contorno envolve os endereços de cada quadra com folga de 7 m, então é aproximado.
+
 ## Dados das casas
 
 Os pontos vêm do **CNEFE 2022 do IBGE** (`3170602_VARGEM_BONITA.csv`, na raiz). O script `scripts/gerar-casas.mjs` converte o CSV em `public/data/casas.json` e mostra quantos pontos há por espécie e por localidade:

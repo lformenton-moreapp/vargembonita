@@ -46,6 +46,13 @@ create table if not exists public.contatos (
   recebido_em    timestamptz not null default now()
 );
 
+-- Divisão das áreas: qual equipe cuida de cada quarteirão / comunidade.
+create table if not exists public.atribuicoes (
+  quarteirao_id  text primary key,
+  equipe         text not null,
+  atualizado_em  timestamptz not null default now()
+);
+
 -- Configuração privada (ninguém lê pela chave pública).
 create table if not exists public.config (
   chave  text primary key,
@@ -59,18 +66,43 @@ alter table public.visitas enable row level security;
 alter table public.casas_novas enable row level security;
 alter table public.contatos enable row level security;
 alter table public.config enable row level security;
+alter table public.atribuicoes enable row level security;
 
 drop policy if exists "ler visitas" on public.visitas;
 drop policy if exists "inserir visitas" on public.visitas;
 drop policy if exists "ler casas novas" on public.casas_novas;
 drop policy if exists "inserir casas novas" on public.casas_novas;
 drop policy if exists "inserir contatos" on public.contatos;
+drop policy if exists "ler atribuicoes" on public.atribuicoes;
 
 create policy "ler visitas"         on public.visitas     for select to anon using (true);
 create policy "inserir visitas"     on public.visitas     for insert to anon with check (true);
 create policy "ler casas novas"     on public.casas_novas for select to anon using (true);
 create policy "inserir casas novas" on public.casas_novas for insert to anon with check (true);
 create policy "inserir contatos"    on public.contatos    for insert to anon with check (true);
+create policy "ler atribuicoes"     on public.atribuicoes for select to anon using (true);
+
+-- Só a coordenação (com o código) muda a divisão das áreas.
+create or replace function public.atribuir_quarteirao(codigo text, quarteirao text, equipe text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.config where chave = 'codigo_coordenacao' and lower(valor) = lower(trim(codigo))) then
+    raise exception 'Código da coordenação incorreto';
+  end if;
+  if equipe is null then
+    delete from public.atribuicoes where quarteirao_id = quarteirao;
+  else
+    insert into public.atribuicoes (quarteirao_id, equipe, atualizado_em) values (quarteirao, equipe, now())
+    on conflict (quarteirao_id) do update set equipe = excluded.equipe, atualizado_em = now();
+  end if;
+end;
+$$;
+revoke all on function public.atribuir_quarteirao(text, text, text) from public;
+grant execute on function public.atribuir_quarteirao(text, text, text) to anon;
 
 -- Leitura dos contatos pelo painel: só com o código da coordenação.
 create or replace function public.contatos_coordenacao(codigo text)
