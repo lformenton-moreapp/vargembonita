@@ -189,11 +189,20 @@ async function baixar(sb, store) {
     linhas.push(...data);
     if (data.length < 1000) break;
   }
+  const completa = !desde;
   for (const r of linhas) if (!marca[store] || r.recebido_em > marca[store]) marca[store] = r.recebido_em;
-  if (!linhas.length) return;
   const locais = new Map((await todos(store)).map((x) => [x.id, x]));
   const novos = linhas.filter((r) => !locais.get(r.id)?.pendente).map((r) => ({ ...r, pendente: 0 }));
-  await tx(store, 'readwrite', (s) => novos.forEach((r) => s.put(r)));
+  // Na carga completa (ao abrir o app), o que já foi enviado e não existe
+  // mais no banco é apagado do celular (ex.: limpeza dos testes pela coordenação).
+  // O que ainda está pendente de envio nunca é apagado.
+  const noBanco = new Set(linhas.map((r) => r.id));
+  const sumiram = completa ? [...locais.values()].filter((x) => !x.pendente && !noBanco.has(x.id)) : [];
+  if (!novos.length && !sumiram.length) return;
+  await tx(store, 'readwrite', (s) => {
+    novos.forEach((r) => s.put(r));
+    sumiram.forEach((r) => s.delete(r.id));
+  });
 }
 
 let sincronizando = null;
